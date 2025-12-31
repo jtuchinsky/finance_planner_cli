@@ -1,0 +1,280 @@
+"""
+Account management commands.
+
+Commands for creating, listing, updating, and deleting financial accounts.
+"""
+import typer
+import json
+from typing import Optional
+from rich.table import Table
+
+from cli.services.finance_client import FinanceClient
+from cli.services.token_manager import TokenManager
+from cli.utils.console import console, print_success, print_error, print_warning
+from cli.utils.errors import (
+    ServiceNotRunningError,
+    AuthenticationError,
+    TokenRefreshError,
+)
+
+app = typer.Typer(help="Account management commands")
+
+
+@app.command()
+def create(
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Account name"),
+    account_type: Optional[str] = typer.Option(
+        None,
+        "--type",
+        "-t",
+        help="Account type: checking, savings, credit, investment, cash",
+    ),
+    balance: Optional[float] = typer.Option(None, "--balance", "-b", help="Initial balance"),
+):
+    """Create a new financial account."""
+    # Prompt for missing values
+    if not name:
+        name = typer.prompt("Account name")
+
+    if not account_type:
+        console.print("\nAccount types:")
+        console.print("  1. checking")
+        console.print("  2. savings")
+        console.print("  3. credit")
+        console.print("  4. investment")
+        console.print("  5. cash")
+        account_type = typer.prompt(
+            "Account type",
+            type=typer.Choice(["checking", "savings", "credit", "investment", "cash"]),
+        )
+
+    if balance is None:
+        balance = typer.prompt("Initial balance", type=float, default=0.0)
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        account = client.create_account(
+            token=token,
+            name=name,
+            account_type=account_type,
+            balance=balance,
+        )
+
+        print_success(f"Account created: {account.name}")
+        console.print(f"  ID: {account.id}")
+        console.print(f"  Type: {account.account_type}")
+        console.print(f"  Balance: ${account.balance:,.2f}")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except TokenRefreshError as e:
+        print_error(f"Failed to refresh token: {str(e)}")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command("list")
+def list_accounts(
+    output_format: str = typer.Option(
+        "table",
+        "--format",
+        "-f",
+        help="Output format: table, json, pretty",
+    ),
+):
+    """List all accounts for the current user."""
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        accounts = client.list_accounts(token)
+
+        if not accounts:
+            console.print("No accounts found", style="yellow")
+            console.print("\nCreate an account with: finance-cli accounts create")
+            raise typer.Exit(0)
+
+        # Output based on format
+        if output_format == "json":
+            print(json.dumps([acc.model_dump(mode="json") for acc in accounts], indent=2, default=str))
+        elif output_format == "table":
+            table = Table(title="Your Accounts")
+            table.add_column("ID", justify="right", style="cyan", no_wrap=True)
+            table.add_column("Name", style="magenta")
+            table.add_column("Type", style="green")
+            table.add_column("Balance", justify="right", style="yellow")
+
+            for acc in accounts:
+                table.add_row(
+                    str(acc.id),
+                    acc.name,
+                    acc.account_type,
+                    f"${acc.balance:,.2f}",
+                )
+
+            console.print(table)
+        else:  # pretty
+            for acc in accounts:
+                console.print(
+                    f"[cyan]{acc.id}[/cyan] - {acc.name} ({acc.account_type}): [yellow]${acc.balance:,.2f}[/yellow]"
+                )
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def get(
+    account_id: int = typer.Argument(..., help="Account ID"),
+):
+    """Get details of a specific account."""
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        account = client.get_account(token, account_id)
+
+        console.print(f"\n[bold]Account Details[/bold]")
+        console.print(f"  ID: {account.id}")
+        console.print(f"  Name: {account.name}")
+        console.print(f"  Type: {account.account_type}")
+        console.print(f"  Balance: ${account.balance:,.2f}")
+        console.print(f"  User ID: {account.user_id}")
+        console.print(f"  Created: {account.created_at}")
+        console.print(f"  Updated: {account.updated_at}")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def update(
+    account_id: int = typer.Argument(..., help="Account ID"),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="New account name"),
+    account_type: Optional[str] = typer.Option(None, "--type", "-t", help="New account type"),
+    balance: Optional[float] = typer.Option(None, "--balance", "-b", help="New balance"),
+):
+    """Update an account."""
+    if not any([name, account_type, balance is not None]):
+        print_error("At least one field must be provided to update")
+        console.print("\nUsage: finance-cli accounts update <id> --name <name> --type <type> --balance <balance>")
+        raise typer.Exit(1)
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        account = client.update_account(
+            token=token,
+            account_id=account_id,
+            name=name,
+            account_type=account_type,
+            balance=balance,
+        )
+
+        print_success(f"Account {account_id} updated")
+        console.print(f"  Name: {account.name}")
+        console.print(f"  Type: {account.account_type}")
+        console.print(f"  Balance: ${account.balance:,.2f}")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def delete(
+    account_id: int = typer.Argument(..., help="Account ID"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Delete an account."""
+    if not yes:
+        confirm = typer.confirm(f"Are you sure you want to delete account {account_id}?")
+        if not confirm:
+            console.print("Cancelled")
+            raise typer.Exit(0)
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        client.delete_account(token, account_id)
+
+        print_success(f"Account {account_id} deleted")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
