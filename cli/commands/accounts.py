@@ -203,12 +203,16 @@ def update(
     account_id: int = typer.Argument(..., help="Account ID"),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="New account name"),
     account_type: Optional[str] = typer.Option(None, "--type", "-t", help="New account type"),
-    balance: Optional[float] = typer.Option(None, "--balance", "-b", help="New balance"),
 ):
-    """Update an account."""
-    if not any([name, account_type, balance is not None]):
+    """
+    Update an account's name or type.
+
+    Note: Balance cannot be updated directly. It is managed through transactions.
+    """
+    if not any([name, account_type]):
         print_error("At least one field must be provided to update")
-        console.print("\nUsage: finance-cli accounts update <id> --name <name> --type <type> --balance <balance>")
+        console.print("\nUsage: finance-cli accounts update <id> --name <name> --type <type>")
+        console.print("\nNote: Balance is read-only and calculated from transactions")
         raise typer.Exit(1)
 
     try:
@@ -226,13 +230,11 @@ def update(
             account_id=account_id,
             name=name,
             account_type=account_type,
-            balance=balance,
         )
 
         print_success(f"Account {account_id} updated")
         console.print(f"  Name: {account.name}")
         console.print(f"  Type: {account.account_type}")
-        console.print(f"  Balance: ${account.balance:,.2f}")
 
     except ServiceNotRunningError as e:
         print_error(str(e))

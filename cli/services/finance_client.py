@@ -163,17 +163,17 @@ class FinanceClient:
         account_id: int,
         name: Optional[str] = None,
         account_type: Optional[str] = None,
-        balance: Optional[float] = None,
     ) -> Account:
         """
         Update an account.
+
+        Note: Balance cannot be updated directly. It is calculated from transactions.
 
         Args:
             token: JWT access token
             account_id: Account ID to update
             name: New account name (optional)
             account_type: New account type (optional)
-            balance: New balance (optional)
 
         Returns:
             Updated account data
@@ -192,8 +192,6 @@ class FinanceClient:
             data["name"] = name
         if account_type is not None:
             data["account_type"] = account_type
-        if balance is not None:
-            data["balance"] = balance
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:

@@ -68,11 +68,14 @@ class AccountCreate(AccountBase):
 
 
 class AccountUpdate(BaseModel):
-    """Account update request (all fields optional)."""
+    """
+    Account update request (all fields optional).
+
+    Note: Balance cannot be updated directly as it's calculated from transactions.
+    """
 
     name: Optional[str] = None
     account_type: Optional[str] = None
-    balance: Optional[float] = None
 
 
 class Account(AccountBase):
