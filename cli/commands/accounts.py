@@ -43,10 +43,13 @@ def create(
         console.print("  3. credit")
         console.print("  4. investment")
         console.print("  5. cash")
-        account_type = typer.prompt(
-            "Account type",
-            type=typer.Choice(["checking", "savings", "credit", "investment", "cash"]),
-        )
+
+        valid_types = ["checking", "savings", "credit", "investment", "cash"]
+        while True:
+            account_type = typer.prompt("Account type")
+            if account_type in valid_types:
+                break
+            print_error(f"Invalid account type. Choose from: {', '.join(valid_types)}")
 
     if balance is None:
         balance = typer.prompt("Initial balance", type=float, default=0.0)
