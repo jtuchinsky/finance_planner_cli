@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-finance-cli = "cli.main:main"
+finance-cli = "cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cli"]

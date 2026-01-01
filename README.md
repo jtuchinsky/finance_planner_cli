@@ -29,9 +29,17 @@ cd /Users/jacobtuchinsky/PycharmProjects/finance_planner_cli
 # Install dependencies
 uv sync
 
-# Verify installation
+# Verify installation (using uv run)
+uv run finance-cli --help
+
+# Or activate the virtual environment
+source .venv/bin/activate
 finance-cli --help
 ```
+
+**Note:** With `uv`, you can either:
+- Use `uv run finance-cli <command>` to run without activating
+- Or activate the virtual environment: `source .venv/bin/activate` then use `finance-cli` directly
 
 ### First-Time Setup
 
@@ -64,6 +72,10 @@ finance-cli --help
 ## Usage
 
 ### Environment Commands
+
+All commands below assume you've either:
+- Activated the virtual environment: `source .venv/bin/activate`
+- Or prefix each command with `uv run`, e.g., `uv run finance-cli env check`
 
 ```bash
 # Check if .env files exist in both projects

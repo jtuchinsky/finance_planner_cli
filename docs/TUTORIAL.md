@@ -132,6 +132,9 @@ alembic upgrade head
 ```bash
 cd ~/PycharmProjects/finance_planner_cli
 uv sync
+
+# Activate the virtual environment
+source .venv/bin/activate
 ```
 
 ### Verify Installation
@@ -143,6 +146,9 @@ finance-cli --version
 finance-cli env show-paths
 # Should show both projects detected
 ```
+
+**Note:** For the rest of this tutorial, we assume the virtual environment is activated.
+If you prefer not to activate, prefix all `finance-cli` commands with `uv run`, e.g., `uv run finance-cli env check`.
 
 ---
 

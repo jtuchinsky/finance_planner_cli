@@ -22,11 +22,17 @@ This project uses `uv` for package management.
 # Install dependencies
 uv sync
 
-# Run CLI
-python -m cli.main --help
+# Run CLI (choose one method):
 
-# Or use the installed command
+# Method 1: Use uv run (no activation needed)
+uv run finance-cli --help
+
+# Method 2: Activate virtual environment first
+source .venv/bin/activate
 finance-cli --help
+
+# Method 3: Use python -m
+uv run python -m cli.main --help
 ```
 
 ## Project Structure
@@ -79,6 +85,9 @@ cli/
 - Can override with `CLI_MCP_AUTH_PATH` and `CLI_FINANCE_PLANNER_PATH`
 
 ## Common Commands
+
+**Note:** All commands below assume you've activated the venv with `source .venv/bin/activate`.
+Alternatively, prefix each command with `uv run`.
 
 ```bash
 # Environment validation
