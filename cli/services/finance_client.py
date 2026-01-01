@@ -54,7 +54,7 @@ class FinanceClient:
         """
         url = f"{self.base_url}/api/accounts"
         headers = {"Authorization": f"Bearer {token}"}
-        data = {"name": name, "account_type": account_type, "balance": balance}
+        data = {"name": name, "account_type": account_type, "initial_balance": balance}
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:

@@ -27,7 +27,7 @@ def create(
         None,
         "--type",
         "-t",
-        help="Account type: checking, savings, credit, investment, cash",
+        help="Account type: checking, savings, credit_card, investment, loan, other",
     ),
     balance: Optional[float] = typer.Option(None, "--balance", "-b", help="Initial balance"),
 ):
@@ -40,11 +40,12 @@ def create(
         console.print("\nAccount types:")
         console.print("  1. checking")
         console.print("  2. savings")
-        console.print("  3. credit")
+        console.print("  3. credit_card")
         console.print("  4. investment")
-        console.print("  5. cash")
+        console.print("  5. loan")
+        console.print("  6. other")
 
-        valid_types = ["checking", "savings", "credit", "investment", "cash"]
+        valid_types = ["checking", "savings", "credit_card", "investment", "loan", "other"]
         while True:
             account_type = typer.prompt("Account type")
             if account_type in valid_types:
