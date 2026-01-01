@@ -290,9 +290,10 @@ Account name: Checking Account
 Account types:
   1. checking
   2. savings
-  3. credit
+  3. credit_card
   4. investment
-  5. cash
+  5. loan
+  6. other
 Account type: checking
 Initial balance: 1000.00
 ```
@@ -304,6 +305,8 @@ Initial balance: 1000.00
   Type: checking
   Balance: $1,000.00
 ```
+
+**💡 Important Note:** Balance can only be set when creating an account. Once created, balance is read-only and managed through transactions.
 
 ### Create a Savings Account
 
@@ -359,16 +362,24 @@ Account Details
 
 ### Update an Account
 
+You can update an account's **name** or **type** (balance cannot be updated):
+
 ```bash
-finance-cli accounts update 1 --balance 1500.00
+finance-cli accounts update 1 --name "Main Checking"
 ```
 
 **Output:**
 ```
 ✓ Account 1 updated
-  Name: Checking Account
+  Name: Main Checking
   Type: checking
-  Balance: $1,500.00
+```
+
+**Note:** Balance is read-only after creation. It will be managed through transactions (future feature).
+
+You can also change the account type:
+```bash
+finance-cli accounts update 1 --type savings
 ```
 
 ### Delete an Account
@@ -485,8 +496,11 @@ You now have a fully functional Finance Planner system:
 
 ```bash
 finance-cli accounts create --name "Investment Account" --type investment --balance 10000
-finance-cli accounts create --name "Cash" --type cash --balance 500
+finance-cli accounts create --name "Credit Card" --type credit_card --balance 0
+finance-cli accounts create --name "Personal Loan" --type loan --balance 5000
 ```
+
+**Valid account types:** `checking`, `savings`, `credit_card`, `investment`, `loan`, `other`
 
 ### Explore More CLI Features
 
@@ -576,6 +590,43 @@ EOF
 finance-cli env validate-secrets
 ```
 
+### Invalid Account Type Error
+
+**Error:** `Validation errors: account_type: Input should be 'checking', 'savings', 'credit_card', 'investment', 'loan' or 'other'`
+
+**Cause:** Using an invalid account type like `credit` or `cash`.
+
+**Fix:** Use one of the valid account types:
+```bash
+# Valid types
+finance-cli accounts create --name "Credit Card" --type credit_card --balance 0
+finance-cli accounts create --name "Savings" --type savings --balance 5000
+
+# Valid types: checking, savings, credit_card, investment, loan, other
+```
+
+### Balance Update Not Supported
+
+**Error:** `No such option: --balance`
+
+**Cause:** Trying to update account balance, which is read-only after creation.
+
+**Explanation:**
+Balance can only be set when creating an account. After creation, balance is read-only and will be managed through transactions (future feature).
+
+**What you can do:**
+```bash
+# ✓ Set balance on creation
+finance-cli accounts create --name "Savings" --type savings --balance 5000
+
+# ✓ Update name or type
+finance-cli accounts update 1 --name "Emergency Fund"
+finance-cli accounts update 1 --type checking
+
+# ✗ Cannot update balance after creation
+# finance-cli accounts update 1 --balance 10000  # This won't work
+```
+
 ### Token Expired
 
 **Error:** `✗ Authentication failed - token may be expired`
@@ -623,10 +674,13 @@ finance-cli auth whoami
 finance-cli auth logout
 
 # Accounts
-finance-cli accounts create
-finance-cli accounts list
+finance-cli accounts create                          # Interactive prompts
+finance-cli accounts create --name "Account" --type checking --balance 1000
+finance-cli accounts list                            # Table format
+finance-cli accounts list --format json              # JSON output
 finance-cli accounts get <id>
-finance-cli accounts update <id> --balance <amount>
+finance-cli accounts update <id> --name "New Name"   # Update name
+finance-cli accounts update <id> --type savings      # Update type
 finance-cli accounts delete <id>
 
 # Services (start in separate terminals with uv run)
