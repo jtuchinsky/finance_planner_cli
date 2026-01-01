@@ -125,12 +125,12 @@ def logout(
         # Determine which user to logout
         target_email = email or current_user
 
-        # Try to call server logout endpoint
+        # Try to call server logout endpoint (revoke refresh token)
         try:
-            token = token_manager.get_current_token(auto_refresh=False)
-            if token:
+            refresh_token = token_manager.get_refresh_token()
+            if refresh_token:
                 client = AuthClient()
-                client.logout(token)
+                client.logout(refresh_token)
         except (TokenExpiredError, TokenNotFoundError, Exception):
             # Continue even if server logout fails
             pass

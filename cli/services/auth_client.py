@@ -147,22 +147,22 @@ class AuthClient:
         except httpx.ConnectError as e:
             raise ServiceNotRunningError("MCP_Auth", self.base_url) from e
 
-    def logout(self, access_token: str) -> None:
+    def logout(self, refresh_token: str) -> None:
         """
-        Logout (revoke tokens).
+        Logout (revoke refresh token).
 
         Args:
-            access_token: Current access token
+            refresh_token: Refresh token to revoke
 
         Raises:
             ServiceNotRunningError: If MCP_Auth is not running
         """
         url = f"{self.base_url}/auth/logout"
-        headers = {"Authorization": f"Bearer {access_token}"}
+        data = {"refresh_token": refresh_token}
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
-                response = client.post(url, headers=headers)
+                response = client.post(url, json=data)
 
                 # Logout succeeds even with 401 (already logged out)
                 if response.status_code not in [200, 204, 401]:
