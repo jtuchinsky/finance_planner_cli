@@ -98,7 +98,17 @@ class FinanceClient:
                 response = client.get(url, headers=headers)
 
                 if response.status_code == 200:
-                    accounts_data = response.json()
+                    response_data = response.json()
+
+                    # Handle paginated response format: {'accounts': [...], 'total': N}
+                    if isinstance(response_data, dict) and 'accounts' in response_data:
+                        accounts_data = response_data['accounts']
+                    elif isinstance(response_data, list):
+                        accounts_data = response_data
+                    else:
+                        # Unexpected format
+                        accounts_data = []
+
                     return [Account(**acc) for acc in accounts_data]
                 elif response.status_code == 401:
                     raise AuthenticationError("Invalid or expired token")
