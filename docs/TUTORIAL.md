@@ -109,7 +109,6 @@ SECRET_KEY=$(grep SECRET_KEY ~/PycharmProjects/MCP_Auth/.env)
 cat > .env <<EOF
 ${SECRET_KEY}
 DATABASE_URL=sqlite:///./finance.db
-MCP_AUTH_URL=http://127.0.0.1:8001
 EOF
 ```
 
@@ -123,7 +122,6 @@ alembic upgrade head
 **Your `.env` file should contain:**
 - `SECRET_KEY=<same-as-mcp-auth>`
 - `DATABASE_URL=sqlite:///./finance.db`
-- `MCP_AUTH_URL=http://127.0.0.1:8001`
 
 ---
 
