@@ -59,32 +59,33 @@ uv sync
 ### Configure Environment
 
 ```bash
-# Copy example env file
-cp .env.example .env
-
-# Generate a SECRET_KEY
-python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))" > .env.secret
-
-# Add database URL to .env
-cat >> .env <<EOF
-DATABASE_URL=sqlite:///./auth.db
-EOF
-
-# Append the secret key
-cat .env.secret >> .env
-rm .env.secret
+# Generate and create .env file with SECRET_KEY and DATABASE_URL
+python3 << 'PYTHON_SCRIPT'
+import secrets
+secret_key = secrets.token_urlsafe(32)
+with open('.env', 'w') as f:
+    f.write(f'SECRET_KEY={secret_key}\n')
+    f.write('DATABASE_URL=sqlite:///./auth.db\n')
+print(f'✓ Created .env with SECRET_KEY: {secret_key[:10]}...')
+PYTHON_SCRIPT
 ```
 
 ### Initialize Database
 
 ```bash
-# Run migrations
-alembic upgrade head
+# Run migrations (using uv to ensure correct Python environment)
+uv run alembic upgrade head
 ```
 
-**Your `.env` file should contain:**
+**Your `.env` file should now contain:**
 - `SECRET_KEY=<generated-key>`
 - `DATABASE_URL=sqlite:///./auth.db`
+
+**Verify:**
+```bash
+cat .env
+# Should show SECRET_KEY and DATABASE_URL
+```
 
 ---
 
@@ -102,26 +103,33 @@ uv sync
 **IMPORTANT:** Use the **same SECRET_KEY** from MCP_Auth!
 
 ```bash
-# Copy the SECRET_KEY from MCP_Auth
-SECRET_KEY=$(grep SECRET_KEY ~/PycharmProjects/MCP_Auth/.env)
+# Copy SECRET_KEY from MCP_Auth and create .env file
+SECRET_KEY=$(grep "^SECRET_KEY=" ~/PycharmProjects/MCP_Auth/.env | cut -d'=' -f2)
 
-# Create .env file
 cat > .env <<EOF
-${SECRET_KEY}
+SECRET_KEY=${SECRET_KEY}
 DATABASE_URL=sqlite:///./finance.db
 EOF
+```
+
+**Verify:**
+```bash
+cat .env
+# Should show SECRET_KEY (same as MCP_Auth) and DATABASE_URL
 ```
 
 ### Initialize Database
 
 ```bash
-# Run migrations
-alembic upgrade head
+# Run migrations (using uv to ensure correct Python environment)
+uv run alembic upgrade head
 ```
 
-**Your `.env` file should contain:**
+**Your `.env` file should contain (and nothing else):**
 - `SECRET_KEY=<same-as-mcp-auth>`
 - `DATABASE_URL=sqlite:///./finance.db`
+
+**⚠️ Important:** Do NOT add `MCP_AUTH_URL` or any other variables to this .env file!
 
 ---
 
@@ -158,24 +166,26 @@ Open **three terminal tabs/windows**:
 
 ```bash
 cd ~/PycharmProjects/MCP_Auth
-uvicorn main:app --reload --port 8001
+uv run uvicorn main:app --reload --port 8001
 ```
 
 **Wait for:**
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process
 ```
 
 ### Terminal 2: Start Finance Planner
 
 ```bash
 cd ~/PycharmProjects/finance_planner
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
 **Wait for:**
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process
 ```
 
 ### Terminal 3: Use the CLI
@@ -506,6 +516,38 @@ The Finance Planner will support transaction tracking. Stay tuned!
 
 ## Troubleshooting
 
+### Alembic Migration Error: "Extra inputs are not permitted"
+
+**Error:**
+```
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+MCP_AUTH_URL
+  Extra inputs are not permitted [type=extra_forbidden]
+```
+
+**Cause:** Your finance_planner `.env` file contains extra variables not expected by the Settings model.
+
+**Fix:**
+```bash
+cd ~/PycharmProjects/finance_planner
+
+# Recreate .env with only required variables
+SECRET_KEY=$(grep "^SECRET_KEY=" .env | cut -d'=' -f2)
+
+cat > .env <<EOF
+SECRET_KEY=${SECRET_KEY}
+DATABASE_URL=sqlite:///./finance.db
+EOF
+
+# Verify
+cat .env
+
+# Run migration again
+uv run alembic upgrade head
+```
+
+**Remember:** The finance_planner `.env` should ONLY contain `SECRET_KEY` and `DATABASE_URL`.
+
 ### Service Not Running
 
 **Error:** `✗ MCP_Auth is not running at http://127.0.0.1:8001`
@@ -513,7 +555,7 @@ The Finance Planner will support transaction tracking. Stay tuned!
 **Fix:** Make sure Terminal 1 is running MCP_Auth:
 ```bash
 cd ~/PycharmProjects/MCP_Auth
-uvicorn main:app --reload --port 8001
+uv run uvicorn main:app --reload --port 8001
 ```
 
 ### SECRET_KEY Mismatch
@@ -522,8 +564,16 @@ uvicorn main:app --reload --port 8001
 
 **Fix:** Copy SECRET_KEY from MCP_Auth to Finance Planner:
 ```bash
-grep SECRET_KEY ~/PycharmProjects/MCP_Auth/.env
-# Copy the value and update finance_planner/.env
+cd ~/PycharmProjects/finance_planner
+SECRET_KEY=$(grep "^SECRET_KEY=" ~/PycharmProjects/MCP_Auth/.env | cut -d'=' -f2)
+
+cat > .env <<EOF
+SECRET_KEY=${SECRET_KEY}
+DATABASE_URL=sqlite:///./finance.db
+EOF
+
+# Verify it worked
+finance-cli env validate-secrets
 ```
 
 ### Token Expired
@@ -549,13 +599,16 @@ lsof -ti:8000 | xargs kill -9  # For Finance Planner
 
 **Fix:** Reset the database:
 ```bash
+cd ~/PycharmProjects/MCP_Auth  # or finance_planner
 rm auth.db  # or finance.db
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 ---
 
 ## Quick Reference Commands
+
+**Note:** All `finance-cli` commands assume you've activated the virtual environment (`source .venv/bin/activate`) or prefix with `uv run`.
 
 ```bash
 # Environment
@@ -576,9 +629,9 @@ finance-cli accounts get <id>
 finance-cli accounts update <id> --balance <amount>
 finance-cli accounts delete <id>
 
-# Services (start in separate terminals)
-cd ~/PycharmProjects/MCP_Auth && uvicorn main:app --reload --port 8001
-cd ~/PycharmProjects/finance_planner && uvicorn app.main:app --reload --port 8000
+# Services (start in separate terminals with uv run)
+cd ~/PycharmProjects/MCP_Auth && uv run uvicorn main:app --reload --port 8001
+cd ~/PycharmProjects/finance_planner && uv run uvicorn app.main:app --reload --port 8000
 ```
 
 ---
