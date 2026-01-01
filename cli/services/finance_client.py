@@ -57,7 +57,7 @@ class FinanceClient:
         data = {"name": name, "account_type": account_type, "balance": balance}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.post(url, json=data, headers=headers)
 
                 if response.status_code == 201:
@@ -94,7 +94,7 @@ class FinanceClient:
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.get(url, headers=headers)
 
                 if response.status_code == 200:
@@ -130,7 +130,7 @@ class FinanceClient:
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.get(url, headers=headers)
 
                 if response.status_code == 200:
@@ -186,7 +186,7 @@ class FinanceClient:
             data["balance"] = balance
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.patch(url, json=data, headers=headers)
 
                 if response.status_code == 200:
@@ -224,7 +224,7 @@ class FinanceClient:
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.delete(url, headers=headers)
 
                 if response.status_code == 204:

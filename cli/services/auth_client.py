@@ -52,7 +52,7 @@ class AuthClient:
         data = {"email": email, "password": password}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.post(url, json=data)
 
                 if response.status_code == 201:
@@ -91,7 +91,7 @@ class AuthClient:
         data = {"email": email, "password": password}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.post(url, json=data)
 
                 if response.status_code == 200:
@@ -132,7 +132,7 @@ class AuthClient:
         data = {"refresh_token": refresh_token}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.post(url, json=data)
 
                 if response.status_code == 200:
@@ -161,7 +161,7 @@ class AuthClient:
         headers = {"Authorization": f"Bearer {access_token}"}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.post(url, headers=headers)
 
                 # Logout succeeds even with 401 (already logged out)
@@ -191,7 +191,7 @@ class AuthClient:
         headers = {"Authorization": f"Bearer {access_token}"}
 
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
                 response = client.get(url, headers=headers)
 
                 if response.status_code == 200:
