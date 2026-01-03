@@ -91,24 +91,76 @@ class Account(AccountBase):
 
 
 class TransactionBase(BaseModel):
-    """Base transaction fields (future use)."""
+    """Base transaction fields."""
 
-    amount: float
-    description: Optional[str] = None
+    account_id: int
+    amount: float  # Positive for income, negative for expenses
+    date: str  # ISO format: YYYY-MM-DD
     category: Optional[str] = None
-    transaction_date: datetime
+    merchant: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    tags: Optional[list[str]] = None  # JSON array of tags
+
+
+class TransactionCreate(TransactionBase):
+    """Transaction creation request."""
+
+    pass
+
+
+class TransactionUpdate(BaseModel):
+    """
+    Transaction update request (all fields optional).
+
+    Only provided fields will be updated.
+    """
+
+    account_id: Optional[int] = None
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    category: Optional[str] = None
+    merchant: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    tags: Optional[list[str]] = None
 
 
 class Transaction(TransactionBase):
-    """Transaction response from API (future use)."""
+    """Transaction response from API."""
 
     id: int
-    account_id: int
+    user_id: Optional[int] = None  # Not always returned by API
+    der_category: Optional[str] = None  # Derived category
+    der_merchant: Optional[str] = None  # Derived merchant
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class TransactionListResponse(BaseModel):
+    """Paginated transaction list response."""
+
+    transactions: list[Transaction]
+    total: int
+
+
+class BatchTransactionRequest(BaseModel):
+    """Batch transaction creation request."""
+
+    account_id: int
+    transactions: list[TransactionCreate]
+
+
+class BatchTransactionResponse(BaseModel):
+    """Batch transaction creation response."""
+
+    transactions: list[Transaction]
+    account_balance: float
+    total_amount: float
+    count: int
 
 
 # ============================================================================

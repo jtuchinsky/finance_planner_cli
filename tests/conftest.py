@@ -8,7 +8,13 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
-from cli.models.schemas import TokenResponse, UserResponse, Account
+from cli.models.schemas import (
+    TokenResponse,
+    UserResponse,
+    Account,
+    Transaction,
+    TransactionListResponse,
+)
 
 
 @pytest.fixture
@@ -74,6 +80,55 @@ def mock_accounts_list(mock_account):
         updated_at=datetime.now()
     )
     return [mock_account, account2]
+
+
+@pytest.fixture
+def mock_transaction():
+    """Mock transaction response."""
+    return Transaction(
+        id=1,
+        user_id=1,
+        account_id=1,
+        amount=-50.00,
+        date="2026-01-03",
+        category="Food & Dining",
+        merchant="Starbucks",
+        description="Morning coffee",
+        location="123 Main St",
+        tags=["coffee", "daily"],
+        der_category="food_and_dining",
+        der_merchant="starbucks",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+
+
+@pytest.fixture
+def mock_transactions_list(mock_transaction):
+    """Mock list of transactions."""
+    transaction2 = Transaction(
+        id=2,
+        user_id=1,
+        account_id=1,
+        amount=1000.00,
+        date="2026-01-02",
+        category="Income",
+        merchant="Employer",
+        description="Paycheck",
+        tags=["income", "salary"],
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    return [mock_transaction, transaction2]
+
+
+@pytest.fixture
+def mock_transaction_list_response(mock_transactions_list):
+    """Mock paginated transaction list response."""
+    return TransactionListResponse(
+        transactions=mock_transactions_list,
+        total=2
+    )
 
 
 @pytest.fixture

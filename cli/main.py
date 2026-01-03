@@ -6,7 +6,7 @@ Registers all command groups and provides the main Typer app.
 import typer
 from typing import Optional
 
-from cli.commands import auth, accounts, env
+from cli.commands import auth, accounts, env, transactions
 from cli.utils.console import console
 
 # Create main Typer app
@@ -19,6 +19,7 @@ app = typer.Typer(
 # Register command groups
 app.add_typer(auth.app, name="auth", help="Authentication commands")
 app.add_typer(accounts.app, name="accounts", help="Account management commands")
+app.add_typer(transactions.app, name="transactions", help="Transaction management commands")
 app.add_typer(env.app, name="env", help="Environment configuration management")
 
 

@@ -7,7 +7,14 @@ import httpx
 from typing import Optional
 
 from cli.config.settings import get_settings
-from cli.models.schemas import Account, AccountCreate, AccountUpdate
+from cli.models.schemas import (
+    Account,
+    AccountCreate,
+    AccountUpdate,
+    Transaction,
+    TransactionListResponse,
+    BatchTransactionResponse,
+)
 from cli.utils.errors import (
     ServiceNotRunningError,
     AuthenticationError,
@@ -244,6 +251,368 @@ class FinanceClient:
                 else:
                     raise Exception(
                         f"Delete account failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    # ========================================================================
+    # Transaction Methods
+    # ========================================================================
+
+    def create_transaction(
+        self,
+        token: str,
+        account_id: int,
+        amount: float,
+        date: str,
+        category: Optional[str] = None,
+        merchant: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> Transaction:
+        """
+        Create a new transaction.
+
+        Args:
+            token: JWT access token
+            account_id: Account ID this transaction belongs to
+            amount: Transaction amount (negative for expenses, positive for income)
+            date: Transaction date in ISO format (YYYY-MM-DD)
+            category: Optional category
+            merchant: Optional merchant name
+            description: Optional description
+            location: Optional location
+            tags: Optional list of tags
+
+        Returns:
+            Created transaction data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            CLIValidationError: If input is invalid
+        """
+        url = f"{self.base_url}/api/transactions"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        data = {
+            "account_id": account_id,
+            "amount": amount,
+            "date": date,
+        }
+
+        # Add optional fields only if provided
+        if category is not None:
+            data["category"] = category
+        if merchant is not None:
+            data["merchant"] = merchant
+        if description is not None:
+            data["description"] = description
+        if location is not None:
+            data["location"] = location
+        if tags is not None:
+            data["tags"] = tags
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.post(url, json=data, headers=headers)
+
+                if response.status_code == 201:
+                    return Transaction(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise Exception(f"Account {account_id} not found")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Create transaction failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def list_transactions(
+        self,
+        token: str,
+        account_id: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        category: Optional[str] = None,
+        merchant: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> TransactionListResponse:
+        """
+        List transactions with optional filters.
+
+        Args:
+            token: JWT access token
+            account_id: Filter by account ID
+            start_date: Filter by start date (ISO format)
+            end_date: Filter by end date (ISO format)
+            category: Filter by category
+            merchant: Filter by merchant
+            tags: Filter by tags (comma-separated list matches ANY tag)
+            limit: Maximum number of results
+            offset: Pagination offset
+
+        Returns:
+            TransactionListResponse with transactions and total count
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+        """
+        url = f"{self.base_url}/api/transactions"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Build query parameters
+        params = {}
+        if account_id is not None:
+            params["account_id"] = account_id
+        if start_date is not None:
+            params["start_date"] = start_date
+        if end_date is not None:
+            params["end_date"] = end_date
+        if category is not None:
+            params["category"] = category
+        if merchant is not None:
+            params["merchant"] = merchant
+        if tags is not None:
+            # Convert list to comma-separated string for query param
+            params["tags"] = ",".join(tags)
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.get(url, headers=headers, params=params)
+
+                if response.status_code == 200:
+                    response_data = response.json()
+
+                    # Handle paginated response format: {'transactions': [...], 'total': N}
+                    if isinstance(response_data, dict) and "transactions" in response_data:
+                        return TransactionListResponse(**response_data)
+                    elif isinstance(response_data, list):
+                        # Fallback: simple list format
+                        return TransactionListResponse(
+                            transactions=response_data, total=len(response_data)
+                        )
+                    else:
+                        # Unexpected format
+                        return TransactionListResponse(transactions=[], total=0)
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                else:
+                    raise Exception(
+                        f"List transactions failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def get_transaction(self, token: str, transaction_id: int) -> Transaction:
+        """
+        Get a specific transaction by ID.
+
+        Args:
+            token: JWT access token
+            transaction_id: Transaction ID
+
+        Returns:
+            Transaction data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            Exception: If transaction not found or access denied
+        """
+        url = f"{self.base_url}/api/transactions/{transaction_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    return Transaction(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise Exception(f"Transaction {transaction_id} not found")
+                else:
+                    raise Exception(
+                        f"Get transaction failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def update_transaction(
+        self,
+        token: str,
+        transaction_id: int,
+        account_id: Optional[int] = None,
+        amount: Optional[float] = None,
+        date: Optional[str] = None,
+        category: Optional[str] = None,
+        merchant: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> Transaction:
+        """
+        Update a transaction.
+
+        Args:
+            token: JWT access token
+            transaction_id: Transaction ID to update
+            account_id: New account ID (optional)
+            amount: New amount (optional)
+            date: New date (optional)
+            category: New category (optional)
+            merchant: New merchant (optional)
+            description: New description (optional)
+            location: New location (optional)
+            tags: New tags list (optional)
+
+        Returns:
+            Updated transaction data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            Exception: If transaction not found or access denied
+        """
+        url = f"{self.base_url}/api/transactions/{transaction_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Build update data (only include provided fields)
+        data = {}
+        if account_id is not None:
+            data["account_id"] = account_id
+        if amount is not None:
+            data["amount"] = amount
+        if date is not None:
+            data["date"] = date
+        if category is not None:
+            data["category"] = category
+        if merchant is not None:
+            data["merchant"] = merchant
+        if description is not None:
+            data["description"] = description
+        if location is not None:
+            data["location"] = location
+        if tags is not None:
+            data["tags"] = tags
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.patch(url, json=data, headers=headers)
+
+                if response.status_code == 200:
+                    return Transaction(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise Exception(f"Transaction {transaction_id} not found")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Update transaction failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def delete_transaction(self, token: str, transaction_id: int) -> None:
+        """
+        Delete a transaction.
+
+        Args:
+            token: JWT access token
+            transaction_id: Transaction ID to delete
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            Exception: If transaction not found or access denied
+        """
+        url = f"{self.base_url}/api/transactions/{transaction_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.delete(url, headers=headers)
+
+                if response.status_code == 204:
+                    return  # Success
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise Exception(f"Transaction {transaction_id} not found")
+                else:
+                    raise Exception(
+                        f"Delete transaction failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def batch_create_transactions(
+        self, token: str, account_id: int, transactions: list[dict]
+    ) -> BatchTransactionResponse:
+        """
+        Create multiple transactions in one atomic operation.
+
+        Args:
+            token: JWT access token
+            account_id: Account ID for all transactions
+            transactions: List of transaction dicts (amount, date, category, etc.)
+
+        Returns:
+            BatchTransactionResponse with created transactions and account balance
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            CLIValidationError: If input is invalid
+        """
+        url = f"{self.base_url}/api/transactions/batch"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        data = {"account_id": account_id, "transactions": transactions}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.post(url, json=data, headers=headers)
+
+                if response.status_code == 201:
+                    return BatchTransactionResponse(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise Exception(f"Account {account_id} not found")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Batch create transactions failed: {response.status_code} - {response.text}"
                     )
 
         except httpx.ConnectError as e:
