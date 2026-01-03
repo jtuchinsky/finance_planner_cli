@@ -407,3 +407,98 @@ def get_transaction(transaction_id: int):
     except Exception as e:
         print_error(f"Error: {e}")
         raise typer.Exit(1)
+
+
+@app.command("update")
+def update_transaction(
+    transaction_id: int,
+    account_id: Optional[int] = typer.Option(None, "--account", "-a", help="New account ID"),
+    amount: Optional[float] = typer.Option(None, "--amount", "-m", help="New amount"),
+    date: Optional[str] = typer.Option(None, "--date", "-d", help="New date (YYYY-MM-DD, or 'today', 'yesterday')"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="New category"),
+    merchant: Optional[str] = typer.Option(None, "--merchant", "-M", help="New merchant"),
+    description: Optional[str] = typer.Option(None, "--description", "-D", help="New description"),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help="New location"),
+    tags: Optional[str] = typer.Option(None, "--tags", "-t", help="New tags (comma-separated)"),
+):
+    """Update a transaction's fields."""
+    # Check that at least one field is provided
+    if all(
+        field is None
+        for field in [account_id, amount, date, category, merchant, description, location, tags]
+    ):
+        print_error("At least one field must be provided to update")
+        console.print("\nUse --help to see available fields")
+        raise typer.Exit(1)
+
+    # Parse date if provided
+    parsed_date = None
+    if date is not None:
+        try:
+            parsed_date = parse_date(date)
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(1)
+
+    # Parse tags from comma-separated string to list
+    tags_list = None
+    if tags is not None:
+        tags_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nPlease login first: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        txn = client.update_transaction(
+            token=token,
+            transaction_id=transaction_id,
+            account_id=account_id,
+            amount=amount,
+            date=parsed_date,
+            category=category,
+            merchant=merchant,
+            description=description,
+            location=location,
+            tags=tags_list,
+        )
+
+        print_success(f"Transaction {transaction_id} updated")
+
+        # Show updated fields
+        if account_id is not None:
+            console.print(f"  Account: {txn.account_id}")
+        if amount is not None:
+            amount_display = f"${amount:+,.2f}" if amount >= 0 else f"$-{abs(amount):,.2f}"
+            console.print(f"  Amount: {amount_display}")
+        if parsed_date is not None:
+            console.print(f"  Date: {txn.date}")
+        if category is not None:
+            console.print(f"  Category: {txn.category}")
+        if merchant is not None:
+            console.print(f"  Merchant: {txn.merchant}")
+        if description is not None:
+            console.print(f"  Description: {txn.description}")
+        if location is not None:
+            console.print(f"  Location: {txn.location}")
+        if tags_list is not None:
+            console.print(f"  Tags: {', '.join(txn.tags) if txn.tags else 'None'}")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uv run uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except (AuthenticationError, TokenRefreshError):
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {e}")
+        raise typer.Exit(1)
