@@ -5,6 +5,8 @@ Commands for creating, listing, viewing, updating, and deleting transactions.
 """
 import typer
 import json
+import csv
+from pathlib import Path
 from typing import Optional
 from datetime import datetime, timedelta
 
@@ -544,3 +546,191 @@ def delete_transaction(
     except Exception as e:
         print_error(f"Error: {e}")
         raise typer.Exit(1)
+
+
+@app.command("batch")
+def batch_create(
+    account_id: int,
+    file_path: str,
+    format: str = typer.Option("csv", "--format", "-f", help="File format: csv or json"),
+):
+    """Create multiple transactions from a CSV or JSON file (atomic operation)."""
+    # Validate format
+    valid_formats = ["csv", "json"]
+    if format not in valid_formats:
+        print_error(f"Invalid format: '{format}'. Must be one of: {', '.join(valid_formats)}")
+        raise typer.Exit(1)
+
+    # Check if file exists
+    file = Path(file_path)
+    if not file.exists():
+        print_error(f"File not found: {file_path}")
+        raise typer.Exit(1)
+
+    # Parse file based on format
+    try:
+        if format == "csv":
+            transactions = _parse_csv_file(file)
+        else:  # json
+            transactions = _parse_json_file(file)
+    except Exception as e:
+        print_error(f"Failed to parse {format.upper()} file: {e}")
+        raise typer.Exit(1)
+
+    # Validate batch size
+    if len(transactions) == 0:
+        print_error("No transactions found in file")
+        raise typer.Exit(1)
+    if len(transactions) > 100:
+        print_error(f"Too many transactions ({len(transactions)}). Maximum is 100 per batch.")
+        raise typer.Exit(1)
+
+    console.print(f"Found {len(transactions)} transaction(s) to import...")
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nPlease login first: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        result = client.batch_create_transactions(
+            token=token,
+            account_id=account_id,
+            transactions=transactions,
+        )
+
+        print_success(f"Created {result.count} transactions for account {account_id}")
+        console.print(f"  Total amount: ${result.total_amount:+,.2f}")
+        console.print(f"  New account balance: ${result.account_balance:,.2f}\n")
+
+        console.print("[bold]Transactions:[/bold]")
+        for i, txn in enumerate(result.transactions, 1):
+            amount_display = f"${txn.amount:+,.2f}" if txn.amount >= 0 else f"$-{abs(txn.amount):,.2f}"
+            merchant_display = f" - {txn.merchant}" if txn.merchant else ""
+            category_display = f" ({txn.category})" if txn.category else ""
+            console.print(f"  {i}. {amount_display}{merchant_display}{category_display}")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uv run uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except (AuthenticationError, TokenRefreshError):
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {e}")
+        raise typer.Exit(1)
+
+
+def _parse_csv_file(file_path: Path) -> list[dict]:
+    """
+    Parse CSV file with transaction data.
+
+    Expected columns: amount, date, category, merchant, description, location, tags
+
+    Returns:
+        List of transaction dictionaries
+    """
+    transactions = []
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+
+        # Validate required columns
+        if 'amount' not in reader.fieldnames or 'date' not in reader.fieldnames:
+            raise ValueError("CSV must have 'amount' and 'date' columns")
+
+        for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
+            try:
+                txn = {
+                    'amount': float(row['amount']),
+                    'date': row['date'].strip(),
+                }
+
+                # Add optional fields
+                if 'category' in row and row['category']:
+                    txn['category'] = row['category'].strip()
+                if 'merchant' in row and row['merchant']:
+                    txn['merchant'] = row['merchant'].strip()
+                if 'description' in row and row['description']:
+                    txn['description'] = row['description'].strip()
+                if 'location' in row and row['location']:
+                    txn['location'] = row['location'].strip()
+                if 'tags' in row and row['tags']:
+                    # Parse comma-separated tags
+                    tags_str = row['tags'].strip()
+                    if tags_str:
+                        txn['tags'] = [tag.strip() for tag in tags_str.split(',') if tag.strip()]
+
+                transactions.append(txn)
+
+            except ValueError as e:
+                raise ValueError(f"Row {row_num}: Invalid amount value '{row.get('amount', '')}'") from e
+            except KeyError as e:
+                raise ValueError(f"Row {row_num}: Missing required field {e}") from e
+
+    return transactions
+
+
+def _parse_json_file(file_path: Path) -> list[dict]:
+    """
+    Parse JSON file with transaction data.
+
+    Expected format: Array of transaction objects with fields:
+    - amount (required, number)
+    - date (required, string ISO format)
+    - category, merchant, description, location (optional, strings)
+    - tags (optional, array of strings)
+
+    Returns:
+        List of transaction dictionaries
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    if not isinstance(data, list):
+        raise ValueError("JSON file must contain an array of transactions")
+
+    transactions = []
+
+    for i, item in enumerate(data, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Transaction {i}: Must be an object")
+
+        if 'amount' not in item or 'date' not in item:
+            raise ValueError(f"Transaction {i}: Missing required fields 'amount' and/or 'date'")
+
+        try:
+            txn = {
+                'amount': float(item['amount']),
+                'date': str(item['date']),
+            }
+
+            # Add optional fields if present
+            if 'category' in item and item['category']:
+                txn['category'] = str(item['category'])
+            if 'merchant' in item and item['merchant']:
+                txn['merchant'] = str(item['merchant'])
+            if 'description' in item and item['description']:
+                txn['description'] = str(item['description'])
+            if 'location' in item and item['location']:
+                txn['location'] = str(item['location'])
+            if 'tags' in item and item['tags']:
+                if isinstance(item['tags'], list):
+                    txn['tags'] = [str(tag) for tag in item['tags']]
+                else:
+                    raise ValueError(f"Transaction {i}: 'tags' must be an array")
+
+            transactions.append(txn)
+
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Transaction {i}: {e}") from e
+
+    return transactions
