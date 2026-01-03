@@ -502,3 +502,45 @@ def update_transaction(
     except Exception as e:
         print_error(f"Error: {e}")
         raise typer.Exit(1)
+
+
+@app.command("delete")
+def delete_transaction(
+    transaction_id: int,
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Delete a transaction."""
+    # Confirmation prompt unless --yes flag is used
+    if not yes:
+        confirm = typer.confirm(f"Are you sure you want to delete transaction {transaction_id}?")
+        if not confirm:
+            console.print("Cancelled.")
+            raise typer.Exit(0)
+
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nPlease login first: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        client.delete_transaction(token=token, transaction_id=transaction_id)
+
+        print_success(f"Transaction {transaction_id} deleted")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uv run uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except (AuthenticationError, TokenRefreshError):
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {e}")
+        raise typer.Exit(1)
