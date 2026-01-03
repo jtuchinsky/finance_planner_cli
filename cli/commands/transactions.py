@@ -341,3 +341,69 @@ def _print_summary(transactions, start_date=None, end_date=None):
             console.print(f"  {i}. {category:<20} {amount_display:>12} ({count} transaction{'s' if count != 1 else ''})")
 
     console.print()
+
+
+@app.command("get")
+def get_transaction(transaction_id: int):
+    """Get detailed information about a specific transaction."""
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nPlease login first: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        txn = client.get_transaction(token=token, transaction_id=transaction_id)
+
+        # Display transaction details
+        console.print("\n[bold]Transaction Details[/bold]\n")
+
+        console.print(f"  ID: {txn.id}")
+        console.print(f"  Account ID: {txn.account_id}")
+
+        # Format amount with color
+        if txn.amount >= 0:
+            amount_display = f"[green]+${txn.amount:,.2f}[/green]"
+        else:
+            amount_display = f"[red]-${abs(txn.amount):,.2f}[/red]"
+        console.print(f"  Amount: {amount_display}")
+
+        console.print(f"  Date: {txn.date}")
+
+        if txn.category:
+            console.print(f"  Category: {txn.category}")
+        if txn.der_category:
+            console.print(f"  Derived Category: {txn.der_category}")
+
+        if txn.merchant:
+            console.print(f"  Merchant: {txn.merchant}")
+        if txn.der_merchant:
+            console.print(f"  Derived Merchant: {txn.der_merchant}")
+
+        if txn.description:
+            console.print(f"  Description: {txn.description}")
+        if txn.location:
+            console.print(f"  Location: {txn.location}")
+        if txn.tags:
+            console.print(f"  Tags: {', '.join(txn.tags)}")
+
+        console.print(f"\n  Created: {txn.created_at}")
+        console.print(f"  Updated: {txn.updated_at}")
+        console.print()
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uv run uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except (AuthenticationError, TokenRefreshError):
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {e}")
+        raise typer.Exit(1)
