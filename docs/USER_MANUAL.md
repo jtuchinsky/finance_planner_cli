@@ -341,6 +341,8 @@ finance-cli transactions create
 - Description (optional)
 - Location (optional)
 - Tags (optional, comma-separated)
+- Derived Category (optional, normalized category value)
+- Derived Merchant (optional, normalized merchant value)
 
 **Example:**
 ```
@@ -352,13 +354,17 @@ Merchant (optional, press Enter to skip): Starbucks
 Description (optional, press Enter to skip): Morning coffee
 Location (optional, press Enter to skip): Downtown Seattle
 Tags (comma-separated, optional, press Enter to skip): coffee,daily
+Derived category (optional, press Enter to skip): food_dining
+Derived merchant (optional, press Enter to skip): starbucks
 
 ✓ Transaction created: $-50.00 at Starbucks
   ID: 1
   Account: 1
   Date: 2026-01-03
   Category: Food & Dining
+  Derived Category: food_dining
   Merchant: Starbucks
+  Derived Merchant: starbucks
   Description: Morning coffee
   Location: Downtown Seattle
   Tags: coffee, daily
@@ -374,7 +380,9 @@ finance-cli transactions create \
   -M "Starbucks" \
   -D "Morning coffee" \
   -l "Downtown Seattle" \
-  -t "coffee,daily"
+  -t "coffee,daily" \
+  --der-category "food_dining" \
+  --der-merchant "starbucks"
 ```
 
 **Amount Convention:**
@@ -386,6 +394,13 @@ finance-cli transactions create \
 - `today` - Current date
 - `yesterday` - Previous day
 - `YYYY-MM-DD` - Specific date (e.g., 2026-01-03)
+
+**Derived Fields:**
+- `der_category` - Normalized/standardized category value for analytics and grouping
+- `der_merchant` - Normalized/standardized merchant name for consistent reporting
+- These fields are optional and separate from the display fields (category, merchant)
+- Useful for data analysis, reporting, and machine learning applications
+- Example: Category="Food & Dining", der_category="food_dining"
 
 ### List Transactions
 
@@ -548,7 +563,9 @@ Transaction Details
   Amount: -$50.00
   Date: 2026-01-03
   Category: Food & Dining
+  Derived Category: food_dining
   Merchant: Starbucks
+  Derived Merchant: starbucks
   Description: Morning coffee
   Location: Downtown Seattle
   Tags: coffee, daily
@@ -574,6 +591,8 @@ finance-cli transactions update <transaction_id> [OPTIONS]
 - `--description, -D` - New description
 - `--location, -l` - New location
 - `--tags, -t` - New tags (comma-separated)
+- `--der-category` - New derived category (normalized category value)
+- `--der-merchant` - New derived merchant (normalized merchant value)
 
 **Examples:**
 
@@ -594,12 +613,21 @@ finance-cli transactions update 1 \
 finance-cli transactions update 1 --tags "coffee,breakfast,daily"
 ```
 
+**Update derived fields:**
+```bash
+finance-cli transactions update 1 \
+  --der-category "coffee_shops" \
+  --der-merchant "starbucks_premium"
+```
+
 **Output:**
 ```
 ✓ Transaction 1 updated
   Amount: $-75.00
   Category: Coffee & Snacks
   Merchant: Starbucks Premium
+  Derived Category: coffee_shops
+  Derived Merchant: starbucks_premium
 ```
 
 **Important:**

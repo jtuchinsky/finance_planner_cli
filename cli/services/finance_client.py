@@ -271,6 +271,8 @@ class FinanceClient:
         description: Optional[str] = None,
         location: Optional[str] = None,
         tags: Optional[list[str]] = None,
+        der_category: Optional[str] = None,
+        der_merchant: Optional[str] = None,
     ) -> Transaction:
         """
         Create a new transaction.
@@ -285,6 +287,8 @@ class FinanceClient:
             description: Optional description
             location: Optional location
             tags: Optional list of tags
+            der_category: Optional derived category
+            der_merchant: Optional derived merchant
 
         Returns:
             Created transaction data
@@ -314,6 +318,10 @@ class FinanceClient:
             data["location"] = location
         if tags is not None:
             data["tags"] = tags
+        if der_category is not None:
+            data["der_category"] = der_category
+        if der_merchant is not None:
+            data["der_merchant"] = der_merchant
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
@@ -470,6 +478,8 @@ class FinanceClient:
         description: Optional[str] = None,
         location: Optional[str] = None,
         tags: Optional[list[str]] = None,
+        der_category: Optional[str] = None,
+        der_merchant: Optional[str] = None,
     ) -> Transaction:
         """
         Update a transaction.
@@ -485,6 +495,8 @@ class FinanceClient:
             description: New description (optional)
             location: New location (optional)
             tags: New tags list (optional)
+            der_category: New derived category (optional)
+            der_merchant: New derived merchant (optional)
 
         Returns:
             Updated transaction data
@@ -515,6 +527,10 @@ class FinanceClient:
             data["location"] = location
         if tags is not None:
             data["tags"] = tags
+        if der_category is not None:
+            data["der_category"] = der_category
+        if der_merchant is not None:
+            data["der_merchant"] = der_merchant
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:

@@ -106,7 +106,8 @@ class TransactionBase(BaseModel):
 class TransactionCreate(TransactionBase):
     """Transaction creation request."""
 
-    pass
+    der_category: Optional[str] = None  # Derived category
+    der_merchant: Optional[str] = None  # Derived merchant
 
 
 class TransactionUpdate(BaseModel):
@@ -124,6 +125,8 @@ class TransactionUpdate(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
     tags: Optional[list[str]] = None
+    der_category: Optional[str] = None  # Derived category
+    der_merchant: Optional[str] = None  # Derived merchant
 
 
 class Transaction(TransactionBase):

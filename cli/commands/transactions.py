@@ -69,6 +69,8 @@ def create(
     description: Optional[str] = typer.Option(None, "--description", "-D", help="Description"),
     location: Optional[str] = typer.Option(None, "--location", "-l", help="Location"),
     tags: Optional[str] = typer.Option(None, "--tags", "-t", help="Tags (comma-separated)"),
+    der_category: Optional[str] = typer.Option(None, "--der-category", help="Derived category"),
+    der_merchant: Optional[str] = typer.Option(None, "--der-merchant", help="Derived merchant"),
 ):
     """Create a new transaction."""
     # Prompt for required fields
@@ -114,6 +116,14 @@ def create(
         tags_input = typer.prompt("Tags (comma-separated, optional, press Enter to skip)", default="", show_default=False)
         tags = tags_input if tags_input else None
 
+    if der_category is None:
+        der_category_input = typer.prompt("Derived category (optional, press Enter to skip)", default="", show_default=False)
+        der_category = der_category_input if der_category_input else None
+
+    if der_merchant is None:
+        der_merchant_input = typer.prompt("Derived merchant (optional, press Enter to skip)", default="", show_default=False)
+        der_merchant = der_merchant_input if der_merchant_input else None
+
     # Parse tags from comma-separated string to list
     tags_list = None
     if tags:
@@ -139,6 +149,8 @@ def create(
             description=description,
             location=location,
             tags=tags_list,
+            der_category=der_category,
+            der_merchant=der_merchant,
         )
 
         # Format amount with sign for display
@@ -152,8 +164,12 @@ def create(
 
         if transaction.category:
             console.print(f"  Category: {transaction.category}")
+        if transaction.der_category:
+            console.print(f"  Derived Category: {transaction.der_category}")
         if transaction.merchant:
             console.print(f"  Merchant: {transaction.merchant}")
+        if transaction.der_merchant:
+            console.print(f"  Derived Merchant: {transaction.der_merchant}")
         if transaction.description:
             console.print(f"  Description: {transaction.description}")
         if transaction.location:
@@ -422,12 +438,14 @@ def update_transaction(
     description: Optional[str] = typer.Option(None, "--description", "-D", help="New description"),
     location: Optional[str] = typer.Option(None, "--location", "-l", help="New location"),
     tags: Optional[str] = typer.Option(None, "--tags", "-t", help="New tags (comma-separated)"),
+    der_category: Optional[str] = typer.Option(None, "--der-category", help="New derived category"),
+    der_merchant: Optional[str] = typer.Option(None, "--der-merchant", help="New derived merchant"),
 ):
     """Update a transaction's fields."""
     # Check that at least one field is provided
     if all(
         field is None
-        for field in [account_id, amount, date, category, merchant, description, location, tags]
+        for field in [account_id, amount, date, category, merchant, description, location, tags, der_category, der_merchant]
     ):
         print_error("At least one field must be provided to update")
         console.print("\nUse --help to see available fields")
@@ -468,6 +486,8 @@ def update_transaction(
             description=description,
             location=location,
             tags=tags_list,
+            der_category=der_category,
+            der_merchant=der_merchant,
         )
 
         print_success(f"Transaction {transaction_id} updated")
@@ -482,8 +502,12 @@ def update_transaction(
             console.print(f"  Date: {txn.date}")
         if category is not None:
             console.print(f"  Category: {txn.category}")
+        if der_category is not None:
+            console.print(f"  Derived Category: {txn.der_category}")
         if merchant is not None:
             console.print(f"  Merchant: {txn.merchant}")
+        if der_merchant is not None:
+            console.print(f"  Derived Merchant: {txn.der_merchant}")
         if description is not None:
             console.print(f"  Description: {txn.description}")
         if location is not None:
