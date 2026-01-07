@@ -60,3 +60,15 @@ class TokenNotFoundError(CLIError):
     """No valid token found for current user."""
 
     pass
+
+
+class PermissionDeniedError(CLIError):
+    """Permission denied (403 Forbidden - insufficient role/privileges)."""
+
+    pass
+
+
+class NotFoundException(CLIError):
+    """Resource not found (404 Not Found)."""
+
+    pass

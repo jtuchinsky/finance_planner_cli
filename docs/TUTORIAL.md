@@ -9,7 +9,9 @@ By the end of this tutorial, you'll have:
 - ✅ Finance Planner API service running (port 8000)
 - ✅ Finance CLI installed and configured
 - ✅ A registered user with JWT tokens
-- ✅ Created and managed financial accounts via API
+- ✅ Created and managed financial accounts
+- ✅ Created and tracked transactions
+- ✅ Understanding of multi-tenant access control
 
 ## Prerequisites
 
@@ -375,7 +377,7 @@ finance-cli accounts update 1 --name "Main Checking"
   Type: checking
 ```
 
-**Note:** Balance is read-only after creation. It will be managed through transactions (future feature).
+**Note:** Balance is read-only after creation and is now managed through transactions.
 
 You can also change the account type:
 ```bash
@@ -400,7 +402,193 @@ Are you sure you want to delete account 2? [y/N]: y
 
 ---
 
-## Step 9: Test Direct API Access (Optional)
+## Step 9: Work with Transactions (2 minutes)
+
+Now that you have an account, let's add some transactions to track your finances.
+
+### Create a Transaction
+
+```bash
+finance-cli transactions create --account 1 --amount -45.99 --date today
+```
+
+**Prompts:**
+```
+Category (optional, press Enter to skip): Groceries
+Merchant (optional, press Enter to skip): Whole Foods
+Description (optional, press Enter to skip): Weekly shopping
+```
+
+**Output:**
+```
+✓ Transaction created: $-45.99 at Whole Foods
+  ID: 1
+  Account: 1
+  Date: 2025-01-07
+  Category: Groceries
+  Merchant: Whole Foods
+```
+
+**💡 Transaction Amounts:**
+- Negative amounts (-45.99) = Expenses
+- Positive amounts (+100.00) = Income
+
+### Create More Transactions
+
+```bash
+# Coffee purchase
+finance-cli transactions create \
+  --account 1 \
+  --amount -5.50 \
+  --date yesterday \
+  --category "Coffee" \
+  --merchant "Starbucks"
+
+# Income deposit
+finance-cli transactions create \
+  --account 1 \
+  --amount 2500.00 \
+  --date 2025-01-01 \
+  --category "Income" \
+  --merchant "Employer" \
+  --description "Salary payment"
+```
+
+### List Transactions
+
+```bash
+finance-cli transactions list --account 1
+```
+
+**Output:**
+```
+                 Transactions (3 of 3 total)
+┏━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ ID ┃ Date       ┃ Merchant   ┃ Der. Merchant ┃ Amount     ┃ Category  ┃
+┡━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ 1  │ 2025-01-07 │ Whole F... │ -             │ -$45.99    │ Groceries │
+│ 2  │ 2025-01-06 │ Starbucks  │ -             │ -$5.50     │ Coffee    │
+│ 3  │ 2025-01-01 │ Employer   │ -             │ +$2,500.00 │ Income    │
+└────┴────────────┴────────────┴───────────────┴────────────┴───────────┘
+```
+
+### View Transaction Summary
+
+```bash
+finance-cli transactions list --account 1 --format summary
+```
+
+**Output:**
+```
+Transaction Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Date Range: 2025-01-01 to 2025-01-07
+Total Transactions: 3
+
+Financial Overview:
+  Total Income:    +$2,500.00
+  Total Expenses:  $-51.49
+  Net Change:      +$2,448.51
+
+Top Categories:
+  1. Income              +$2,500.00 (1 transaction)
+  2. Groceries           $-45.99 (1 transaction)
+  3. Coffee              $-5.50 (1 transaction)
+```
+
+### Batch Import Transactions
+
+Create a CSV file with multiple transactions:
+
+```bash
+cat > transactions.csv <<EOF
+amount,date,category,merchant,description
+-32.50,2025-01-05,Gas,Shell,Fuel
+-15.99,2025-01-04,Lunch,Chipotle,Work lunch
+-120.00,2025-01-03,Utilities,Electric Co,Monthly bill
+EOF
+```
+
+Import the transactions:
+
+```bash
+finance-cli transactions batch 1 transactions.csv --format csv
+```
+
+**Output:**
+```
+Found 3 transaction(s) to import...
+✓ Created 3 transactions for account 1
+  Total amount: $-168.49
+  New account balance: $3,280.02
+
+Transactions:
+  1. $-32.50 - Shell (Gas)
+  2. $-15.99 - Chipotle (Lunch)
+  3. $-120.00 - Electric Co (Utilities)
+```
+
+---
+
+## Step 10: Explore Multi-Tenant Features (1 minute)
+
+The Finance Planner includes built-in multi-tenancy with role-based access control.
+
+### View Your Tenant
+
+```bash
+finance-cli tenants show
+```
+
+**Output:**
+```
+┌─ Current Tenant ──────────────────────────┐
+│ Name: demo@example.com's Tenant           │
+│ ID: 1                                     │
+│ Created: 2025-01-07T10:00:00             │
+│ Updated: 2025-01-07T10:00:00             │
+└───────────────────────────────────────────┘
+```
+
+### List Tenant Members
+
+```bash
+finance-cli tenants members list
+```
+
+**Output:**
+```
+           Tenant Members
+┏━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
+┃ ID ┃ User ID ┃ Auth User ID ┃ Role  ┃ Joined    ┃
+┡━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
+│ 1  │ 1       │ user_123...  │ OWNER │ 2025-01-07│
+└────┴─────────┴──────────────┴───────┴───────────┘
+
+Total members: 1
+```
+
+**Role Hierarchy:**
+- **OWNER** - Full control, manage all members and roles
+- **ADMIN** - Invite/remove members (except owner)
+- **MEMBER** - Create/update accounts and transactions
+- **VIEWER** - Read-only access
+
+### Invite a Team Member (requires another registered user)
+
+```bash
+# First, register another user in Terminal 3
+finance-cli auth register
+
+# Then invite them to your tenant
+finance-cli tenants members invite \
+  --auth-user-id <their-auth-user-id> \
+  --role member
+```
+
+---
+
+## Step 11: Test Direct API Access (Optional)
 
 You can also test the APIs directly with curl:
 
@@ -456,7 +644,7 @@ curl -X POST http://127.0.0.1:8000/api/accounts \
 
 ---
 
-## Step 10: Explore API Documentation (Optional)
+## Step 12: Explore API Documentation (Optional)
 
 Both services provide interactive API documentation:
 
@@ -486,7 +674,10 @@ You now have a fully functional Finance Planner system:
 2. How to ensure SECRET_KEY consistency across services
 3. How to use the Finance CLI for development
 4. How to create, list, update, and delete accounts
-5. How to access the APIs directly
+5. How to create and track transactions with filtering and summaries
+6. How to batch import transactions from CSV/JSON files
+7. How to work with multi-tenant features and role-based access control
+8. How to access the APIs directly
 
 ---
 
@@ -502,6 +693,22 @@ finance-cli accounts create --name "Personal Loan" --type loan --balance 5000
 
 **Valid account types:** `checking`, `savings`, `credit_card`, `investment`, `loan`, `other`
 
+### Track More Transactions
+
+```bash
+# Add expenses
+finance-cli transactions create --account 1 --amount -89.99 --date 2025-01-10 --category "Shopping" --merchant "Amazon"
+
+# Add income
+finance-cli transactions create --account 1 --amount 500.00 --date 2025-01-15 --category "Income" --description "Freelance payment"
+
+# Filter transactions by date range
+finance-cli transactions list --account 1 --from 2025-01-01 --to 2025-01-15
+
+# View spending by category
+finance-cli transactions list --account 1 --format summary
+```
+
 ### Explore More CLI Features
 
 ```bash
@@ -510,8 +717,9 @@ finance-cli auth register  # Create another user
 finance-cli auth switch user2@example.com
 finance-cli auth list      # See all logged-in users
 
-# Export accounts as JSON
+# Export data as JSON
 finance-cli accounts list --format json > accounts.json
+finance-cli transactions list --account 1 --format json > transactions.json
 ```
 
 ### Test Token Refresh
@@ -521,10 +729,6 @@ Wait 15 minutes for your token to expire, then run:
 finance-cli accounts list
 # Token will auto-refresh transparently
 ```
-
-### Add Transactions (Future Feature)
-
-The Finance Planner will support transaction tracking. Stay tuned!
 
 ---
 
@@ -612,7 +816,7 @@ finance-cli accounts create --name "Savings" --type savings --balance 5000
 **Cause:** Trying to update account balance, which is read-only after creation.
 
 **Explanation:**
-Balance can only be set when creating an account. After creation, balance is read-only and will be managed through transactions (future feature).
+Balance can only be set when creating an account. After creation, balance is read-only and is managed through transactions.
 
 **What you can do:**
 ```bash
@@ -623,8 +827,12 @@ finance-cli accounts create --name "Savings" --type savings --balance 5000
 finance-cli accounts update 1 --name "Emergency Fund"
 finance-cli accounts update 1 --type checking
 
-# ✗ Cannot update balance after creation
+# ✗ Cannot update balance after creation (use transactions instead)
 # finance-cli accounts update 1 --balance 10000  # This won't work
+
+# ✓ Manage balance through transactions
+finance-cli transactions create --account 1 --amount -50 --date today  # Decrease balance
+finance-cli transactions create --account 1 --amount 100 --date today  # Increase balance
 ```
 
 ### Token Expired
@@ -682,6 +890,23 @@ finance-cli accounts get <id>
 finance-cli accounts update <id> --name "New Name"   # Update name
 finance-cli accounts update <id> --type savings      # Update type
 finance-cli accounts delete <id>
+
+# Transactions
+finance-cli transactions create --account <id> --amount <amount> --date today
+finance-cli transactions list --account <id>
+finance-cli transactions list --account <id> --format summary
+finance-cli transactions get <id>
+finance-cli transactions update <id> --amount <new_amount>
+finance-cli transactions delete <id>
+finance-cli transactions batch <account_id> file.csv --format csv
+
+# Tenants
+finance-cli tenants show
+finance-cli tenants update --name "New Name"
+finance-cli tenants members list
+finance-cli tenants members invite --auth-user-id <id> --role member
+finance-cli tenants members set-role <user_id> --role admin
+finance-cli tenants members remove <user_id>
 
 # Services (start in separate terminals with uv run)
 cd ~/PycharmProjects/MCP_Auth && uv run uvicorn main:app --reload --port 8001

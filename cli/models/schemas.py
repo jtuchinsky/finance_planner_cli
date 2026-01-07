@@ -178,3 +178,52 @@ class SecretKeyValidation(BaseModel):
     mcp_auth_key: Optional[str] = None
     finance_key: Optional[str] = None
     secret_key: Optional[str] = None  # Set when valid and matching
+
+
+# ============================================================================
+# Tenant/RBAC Models
+# ============================================================================
+
+
+class Tenant(BaseModel):
+    """Tenant response from API."""
+
+    id: int
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TenantUpdate(BaseModel):
+    """Tenant update request."""
+
+    name: str
+
+
+class TenantMember(BaseModel):
+    """Tenant member response from API."""
+
+    id: int
+    user_id: int
+    auth_user_id: str
+    role: str  # owner, admin, member, viewer
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TenantInvite(BaseModel):
+    """Tenant member invite request."""
+
+    auth_user_id: str
+    role: str
+
+
+class TenantRoleUpdate(BaseModel):
+    """Tenant member role update request."""
+
+    role: str

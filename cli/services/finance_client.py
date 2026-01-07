@@ -14,11 +14,15 @@ from cli.models.schemas import (
     Transaction,
     TransactionListResponse,
     BatchTransactionResponse,
+    Tenant,
+    TenantMember,
 )
 from cli.utils.errors import (
     ServiceNotRunningError,
     AuthenticationError,
     ValidationError as CLIValidationError,
+    PermissionDeniedError,
+    NotFoundException,
 )
 
 
@@ -647,3 +651,256 @@ class FinanceClient:
             messages.append(f"{field}: {msg}")
 
         return "Validation errors:\n  " + "\n  ".join(messages)
+
+    # ========================================================================
+    # Tenant Methods
+    # ========================================================================
+
+    def get_current_tenant(self, token: str) -> Tenant:
+        """
+        Get current tenant information.
+
+        Args:
+            token: JWT access token
+
+        Returns:
+            Tenant data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            NotFoundException: If tenant not found
+        """
+        url = f"{self.base_url}/api/tenants/me"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    return Tenant(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise NotFoundException("Tenant not found")
+                else:
+                    raise Exception(
+                        f"Get tenant failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def update_tenant(self, token: str, name: str) -> Tenant:
+        """
+        Update current tenant name.
+
+        Args:
+            token: JWT access token
+            name: New tenant name
+
+        Returns:
+            Updated tenant data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            PermissionDeniedError: If user is not OWNER
+            CLIValidationError: If input is invalid
+        """
+        url = f"{self.base_url}/api/tenants/me"
+        headers = {"Authorization": f"Bearer {token}"}
+        data = {"name": name}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.patch(url, json=data, headers=headers)
+
+                if response.status_code == 200:
+                    return Tenant(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 403:
+                    raise PermissionDeniedError("Only OWNER can update tenant name")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Update tenant failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def list_tenant_members(self, token: str) -> list[TenantMember]:
+        """
+        List all members of current tenant.
+
+        Args:
+            token: JWT access token
+
+        Returns:
+            List of tenant member objects
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+        """
+        url = f"{self.base_url}/api/tenants/me/members"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    members_data = response.json()
+                    return [TenantMember(**member) for member in members_data]
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                else:
+                    raise Exception(
+                        f"List members failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def invite_member(self, token: str, auth_user_id: str, role: str) -> TenantMember:
+        """
+        Invite a new member to the tenant.
+
+        Args:
+            token: JWT access token
+            auth_user_id: Auth user ID to invite
+            role: Role to assign (owner, admin, member, viewer)
+
+        Returns:
+            Created tenant member data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            PermissionDeniedError: If user lacks permission
+            CLIValidationError: If input is invalid
+        """
+        url = f"{self.base_url}/api/tenants/me/members"
+        headers = {"Authorization": f"Bearer {token}"}
+        data = {"auth_user_id": auth_user_id, "role": role}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.post(url, json=data, headers=headers)
+
+                if response.status_code == 201:
+                    return TenantMember(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 403:
+                    error_detail = response.json().get("detail", "Permission denied")
+                    raise PermissionDeniedError(error_detail)
+                elif response.status_code == 409:
+                    raise Exception("User is already a member of this tenant")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Invite member failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def update_member_role(self, token: str, user_id: int, role: str) -> TenantMember:
+        """
+        Update a member's role in the tenant.
+
+        Args:
+            token: JWT access token
+            user_id: User ID to update
+            role: New role (admin, member, viewer)
+
+        Returns:
+            Updated tenant member data
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            PermissionDeniedError: If user is not OWNER
+            NotFoundException: If member not found
+            CLIValidationError: If input is invalid
+        """
+        url = f"{self.base_url}/api/tenants/me/members/{user_id}/role"
+        headers = {"Authorization": f"Bearer {token}"}
+        data = {"role": role}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.patch(url, json=data, headers=headers)
+
+                if response.status_code == 200:
+                    return TenantMember(**response.json())
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 403:
+                    error_detail = response.json().get("detail", "Only OWNER can change roles")
+                    raise PermissionDeniedError(error_detail)
+                elif response.status_code == 404:
+                    raise NotFoundException(f"Member with user_id {user_id} not found")
+                elif response.status_code == 422:
+                    errors = response.json().get("detail", [])
+                    error_msg = self._format_validation_errors(errors)
+                    raise CLIValidationError(error_msg)
+                else:
+                    raise Exception(
+                        f"Update member role failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def remove_member(self, token: str, user_id: int) -> dict:
+        """
+        Remove a member from the tenant.
+
+        Args:
+            token: JWT access token
+            user_id: User ID to remove
+
+        Returns:
+            Response dict with message and removed_user_id
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            PermissionDeniedError: If user lacks permission
+            NotFoundException: If member not found
+        """
+        url = f"{self.base_url}/api/tenants/me/members/{user_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.delete(url, headers=headers)
+
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 403:
+                    error_detail = response.json().get("detail", "Permission denied")
+                    raise PermissionDeniedError(error_detail)
+                elif response.status_code == 404:
+                    raise NotFoundException(f"Member with user_id {user_id} not found")
+                else:
+                    raise Exception(
+                        f"Remove member failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e

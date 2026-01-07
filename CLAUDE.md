@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Finance Planner CLI is a developer tool for working with the finance_planner and MCP_Auth microservices. It automates authentication workflows, token management, and provides convenient commands for API testing.
+Finance Planner CLI is a developer tool for working with the finance_planner and MCP_Auth microservices. It automates authentication workflows, token management, and provides convenient commands for managing accounts, transactions, and multi-tenant access control.
 
 ## Related Projects
 
@@ -43,10 +43,12 @@ cli/
 ├── commands/                   # CLI command implementations
 │   ├── auth.py                 # Authentication commands (register, login, logout, whoami)
 │   ├── accounts.py             # Account CRUD commands
+│   ├── transactions.py         # Transaction CRUD + batch import
+│   ├── tenants.py              # Tenant & member management with RBAC
 │   └── env.py                  # Environment validation commands
 ├── services/                   # Business logic and API clients
 │   ├── auth_client.py          # MCP_Auth HTTP client
-│   ├── finance_client.py       # Finance Planner HTTP client
+│   ├── finance_client.py       # Finance Planner HTTP client (accounts, transactions, tenants)
 │   ├── token_manager.py        # JWT token storage and refresh
 │   └── env_validator.py        # .env file validation
 ├── config/                     # Configuration management
@@ -75,8 +77,24 @@ cli/
 
 ### HTTP Clients
 - **AuthClient**: Handles all MCP_Auth API calls (register, login, refresh, profile)
-- **FinanceClient**: Handles all Finance Planner API calls (accounts CRUD)
+- **FinanceClient**: Handles all Finance Planner API calls (accounts, transactions, tenants)
 - Both clients handle error cases (service not running, auth failures, validation errors)
+
+### Multi-Tenancy & RBAC
+- Each user belongs to a tenant with a specific role: OWNER, ADMIN, MEMBER, or VIEWER
+- Role hierarchy determines permissions:
+  - **OWNER**: Full control, manage all members and roles
+  - **ADMIN**: Invite/remove members (except owner), manage tenant settings
+  - **MEMBER**: Create/update accounts and transactions
+  - **VIEWER**: Read-only access
+- JWT token includes tenant_id and role claims for authorization
+
+### Transaction Features
+- **Derived Fields**: Transactions support both user-entered and derived (cleaned/normalized) versions of category and merchant fields
+- **Date Parsing**: Smart date input supporting "today", "yesterday", or ISO format (YYYY-MM-DD)
+- **Batch Import**: Atomic batch creation from CSV/JSON files (up to 100 transactions)
+- **Filtering**: List transactions by account, date range, category, merchant, or tags
+- **Multiple Output Formats**: Table (default), JSON, or summary statistics
 
 ### Configuration
 - Settings loaded from environment variables with `CLI_` prefix
@@ -99,6 +117,8 @@ finance-cli env show-paths               # Show detected project paths
 finance-cli auth register                # Register new user
 finance-cli auth login                   # Login and save token
 finance-cli auth whoami                  # Show current user
+finance-cli auth list                    # List all authenticated users
+finance-cli auth switch <email>          # Switch between users
 finance-cli auth logout                  # Clear tokens
 
 # Account management
@@ -107,6 +127,23 @@ finance-cli accounts list                # List all accounts
 finance-cli accounts get <id>            # Get account details
 finance-cli accounts update <id> --balance 1000
 finance-cli accounts delete <id>
+
+# Transaction management
+finance-cli transactions create --account 1 --amount -50 --date today
+finance-cli transactions list --account 1 --from 2025-01-01
+finance-cli transactions list --format summary    # Show statistics
+finance-cli transactions get <id>
+finance-cli transactions update <id> --amount -75 --category "Groceries"
+finance-cli transactions delete <id>
+finance-cli transactions batch <account_id> <file.csv> --format csv
+
+# Tenant & member management
+finance-cli tenants show                 # Show current tenant info
+finance-cli tenants update --name "New Tenant Name"
+finance-cli tenants members list         # List all members
+finance-cli tenants members invite --auth-user-id <id> --role member
+finance-cli tenants members set-role <user_id> --role admin
+finance-cli tenants members remove <user_id>
 ```
 
 ## Adding Dependencies
@@ -132,6 +169,22 @@ Then run `uv sync`.
 3. Add command functions with `@app.command()` decorator
 4. Register in `cli/main.py`: `app.add_typer(new_commands.app, name="cmd-name")`
 
+### Nested Command Groups
+
+For nested command structures (like `tenants members list`), create sub-apps and register them:
+
+```python
+app = typer.Typer(help="Parent command group")
+sub_app = typer.Typer(help="Nested command group")
+
+# Register nested group
+app.add_typer(sub_app, name="subcommand")
+
+# Example: cli/commands/tenants.py
+# - tenants show/update
+# - tenants members list/invite/remove/set-role
+```
+
 ## Testing
 
 Run the CLI locally:
@@ -144,6 +197,47 @@ Or use the installed command:
 finance-cli <command>
 ```
 
+Run tests with pytest:
+```bash
+pytest
+pytest --cov=cli  # With coverage
+```
+
+## Batch Import File Formats
+
+### CSV Format
+
+Required columns: `amount`, `date`
+Optional columns: `category`, `merchant`, `description`, `location`, `tags`
+
+```csv
+amount,date,category,merchant,description,tags
+-45.99,2025-01-05,Groceries,Whole Foods,Weekly shopping,"food,grocery"
+-12.50,2025-01-06,Coffee,Starbucks,Morning coffee,
+100.00,2025-01-07,Income,Freelance,Project payment,"income,work"
+```
+
+### JSON Format
+
+```json
+[
+  {
+    "amount": -45.99,
+    "date": "2025-01-05",
+    "category": "Groceries",
+    "merchant": "Whole Foods",
+    "description": "Weekly shopping",
+    "tags": ["food", "grocery"]
+  },
+  {
+    "amount": 100.00,
+    "date": "2025-01-07",
+    "category": "Income",
+    "tags": ["income", "work"]
+  }
+]
+```
+
 ## Important Notes
 
 - Token storage uses file permissions 0600 for security
@@ -151,3 +245,5 @@ finance-cli <command>
 - Multiple users supported - CLI stores tokens for each email
 - All commands require services to be running (MCP_Auth on 8001, finance_planner on 8000)
 - Path auto-detection assumes all projects are in `~/PycharmProjects/`
+- Batch imports are atomic - either all transactions succeed or none are created
+- Transaction amounts: negative for expenses, positive for income

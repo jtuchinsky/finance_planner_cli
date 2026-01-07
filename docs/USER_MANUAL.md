@@ -11,11 +11,12 @@
 4. [Authentication](#authentication)
 5. [Account Management](#account-management)
 6. [Transaction Management](#transaction-management)
-7. [Environment Configuration](#environment-configuration)
-8. [Common Workflows](#common-workflows)
-9. [Output Formats](#output-formats)
-10. [Troubleshooting](#troubleshooting)
-11. [Tips & Best Practices](#tips--best-practices)
+7. [Tenant Management](#tenant-management)
+8. [Environment Configuration](#environment-configuration)
+9. [Common Workflows](#common-workflows)
+10. [Output Formats](#output-formats)
+11. [Troubleshooting](#troubleshooting)
+12. [Tips & Best Practices](#tips--best-practices)
 
 ---
 
@@ -737,6 +738,231 @@ Transactions:
 **Import:**
 ```bash
 finance-cli transactions batch 1 transactions.json --format json
+```
+
+---
+
+## Tenant Management
+
+The Finance Planner includes multi-tenancy with role-based access control (RBAC). Each user belongs to a tenant and has a specific role that determines their permissions.
+
+### Understanding Tenants
+
+- **Tenant**: A shared workspace for managing financial data
+- **Members**: Users who belong to the tenant
+- **Roles**: Define what actions members can perform
+
+### Role Hierarchy
+
+| Role | Permissions |
+|------|-------------|
+| **OWNER** | Full control - manage all members, roles, settings, accounts, and transactions |
+| **ADMIN** | Manage members (except owner), update tenant settings, full access to accounts and transactions |
+| **MEMBER** | Create and manage accounts and transactions, read tenant information |
+| **VIEWER** | Read-only access to all data |
+
+### View Current Tenant
+
+Display information about your tenant:
+
+```bash
+finance-cli tenants show
+```
+
+**Example Output:**
+```
+┌─ Current Tenant ──────────────────────────┐
+│ Name: user@example.com's Tenant           │
+│ ID: 1                                     │
+│ Created: 2026-01-03 10:30:00             │
+│ Updated: 2026-01-03 10:30:00             │
+└───────────────────────────────────────────┘
+```
+
+### Update Tenant
+
+Modify tenant information (requires OWNER or ADMIN role):
+
+```bash
+finance-cli tenants update [OPTIONS]
+```
+
+**Options:**
+- `--name, -n` - New tenant name
+
+**Example:**
+```bash
+finance-cli tenants update --name "Family Budget"
+```
+
+**Output:**
+```
+✓ Tenant updated: Family Budget
+  ID: 1
+  Name: Family Budget
+  Updated: 2026-01-03 11:00:00
+```
+
+### List Tenant Members
+
+View all members in your tenant:
+
+```bash
+finance-cli tenants members list
+```
+
+**Example Output:**
+```
+           Tenant Members
+┏━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
+┃ ID ┃ User ID ┃ Auth User ID ┃ Role  ┃ Joined    ┃
+┡━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
+│ 1  │ 1       │ user_abc123  │ OWNER │ 2026-01-03│
+│ 2  │ 2       │ user_def456  │ ADMIN │ 2026-01-04│
+│ 3  │ 3       │ user_ghi789  │ MEMBER│ 2026-01-05│
+└────┴─────────┴──────────────┴───────┴───────────┘
+
+Total members: 3
+```
+
+### Invite Member
+
+Add a new member to your tenant (requires OWNER or ADMIN role):
+
+```bash
+finance-cli tenants members invite [OPTIONS]
+```
+
+**Options:**
+- `--auth-user-id, -u` - Auth service user ID (required)
+- `--role, -r` - Member role: `owner`, `admin`, `member`, `viewer` (required)
+
+**Example:**
+```bash
+finance-cli tenants members invite \
+  --auth-user-id user_xyz123 \
+  --role member
+```
+
+**Output:**
+```
+✓ Member invited successfully
+  User ID: 4
+  Auth User ID: user_xyz123
+  Role: MEMBER
+  Joined: 2026-01-07
+```
+
+**Important:**
+- The auth-user-id must be from a registered user in the MCP_Auth service
+- Only OWNER can invite other OWNER members
+- ADMIN cannot invite or manage OWNER members
+
+### Change Member Role
+
+Update a member's role (requires OWNER or ADMIN role):
+
+```bash
+finance-cli tenants members set-role <user_id> [OPTIONS]
+```
+
+**Options:**
+- `--role, -r` - New role: `owner`, `admin`, `member`, `viewer` (required)
+
+**Example:**
+```bash
+finance-cli tenants members set-role 3 --role admin
+```
+
+**Output:**
+```
+✓ Member role updated
+  User ID: 3
+  New Role: ADMIN
+```
+
+**Restrictions:**
+- Only OWNER can change roles to/from OWNER
+- ADMIN cannot modify OWNER members
+- Cannot change your own role
+
+### Remove Member
+
+Remove a member from your tenant (requires OWNER or ADMIN role):
+
+```bash
+finance-cli tenants members remove <user_id>
+```
+
+**With Confirmation:**
+```bash
+finance-cli tenants members remove 3
+# Prompts: Are you sure you want to remove member 3? [y/N]:
+```
+
+**Skip Confirmation:**
+```bash
+finance-cli tenants members remove 3 --yes
+```
+
+**Output:**
+```
+✓ Member 3 removed from tenant
+```
+
+**Restrictions:**
+- ADMIN cannot remove OWNER members
+- Cannot remove yourself
+- Removing a member does not delete their auth account
+
+### Common Tenant Workflows
+
+#### Set Up Family Budget
+
+```bash
+# 1. Update tenant name
+finance-cli tenants update --name "Smith Family Budget"
+
+# 2. Invite spouse as co-admin
+finance-cli tenants members invite \
+  --auth-user-id spouse_user_id \
+  --role admin
+
+# 3. Invite children as viewers
+finance-cli tenants members invite \
+  --auth-user-id child1_user_id \
+  --role viewer
+
+# 4. View all members
+finance-cli tenants members list
+```
+
+#### Manage Team Finances
+
+```bash
+# 1. Set up tenant for team
+finance-cli tenants update --name "Startup Team Budget"
+
+# 2. Add team members with appropriate roles
+finance-cli tenants members invite \
+  --auth-user-id cfo_user_id \
+  --role admin
+
+finance-cli tenants members invite \
+  --auth-user-id accountant_user_id \
+  --role member
+
+# 3. Add executives as viewers
+finance-cli tenants members invite \
+  --auth-user-id ceo_user_id \
+  --role viewer
+```
+
+#### Promote Member
+
+```bash
+# Promote a member to admin after they've proven helpful
+finance-cli tenants members set-role 5 --role admin
 ```
 
 ---
