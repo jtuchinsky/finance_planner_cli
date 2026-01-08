@@ -24,11 +24,15 @@ app = typer.Typer(help="Authentication commands")
 def register(
     email: Optional[str] = typer.Option(None, "--email", "-e", help="User email"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="User password", hide_input=True),
+    username: Optional[str] = typer.Option(None, "--username", "-u", help="Username"),
+    tenant_id: Optional[int] = typer.Option(None, "--tenant-id", "-t", help="Tenant ID to join (optional)"),
 ):
     """Register a new user with MCP_Auth."""
     # Prompt for missing values
     if not email:
         email = typer.prompt("Email")
+    if not username:
+        username = typer.prompt("Username")
     if not password:
         password = typer.prompt("Password", hide_input=True)
         password_confirm = typer.prompt("Confirm password", hide_input=True)
@@ -39,10 +43,11 @@ def register(
 
     try:
         client = AuthClient()
-        user = client.register(email, password)
+        user = client.register(email, password, username, tenant_id)
 
         print_success(f"User registered: {user.email}")
         console.print(f"  User ID: {user.id}")
+        console.print(f"  Username: {username}")
         console.print(f"  Created: {user.created_at}")
         console.print("\nYou can now login with: finance-cli auth login")
 

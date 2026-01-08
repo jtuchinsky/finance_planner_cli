@@ -32,13 +32,15 @@ class AuthClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = get_settings().http_timeout
 
-    def register(self, email: str, password: str) -> UserResponse:
+    def register(self, email: str, password: str, username: str, tenant_id: Optional[int] = None) -> UserResponse:
         """
         Register a new user.
 
         Args:
             email: User's email address
             password: User's password
+            username: User's username
+            tenant_id: Optional tenant ID to join (defaults to 1 if not provided)
 
         Returns:
             User data
@@ -49,7 +51,12 @@ class AuthClient:
             AuthenticationError: If registration fails
         """
         url = f"{self.base_url}/auth/register"
-        data = {"email": email, "password": password}
+        data = {
+            "email": email,
+            "password": password,
+            "username": username,
+            "tenant_id": tenant_id if tenant_id is not None else 1,  # Default to tenant 1
+        }
 
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
