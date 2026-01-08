@@ -16,6 +16,8 @@ from cli.utils.errors import (
     AuthenticationError,
     PermissionDeniedError,
     NotFoundException,
+    TenantNotFoundError,
+    TenantSwitchError,
 )
 
 app = typer.Typer(help="Tenant management commands")
@@ -79,6 +81,147 @@ def show():
         console.print("\nPlease login again: finance-cli auth login")
         raise typer.Exit(1)
     except NotFoundException as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command("list")
+def list_tenants():
+    """List all tenants you belong to."""
+    try:
+        token_manager = TokenManager()
+        token = token_manager.get_current_token()
+
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        client = FinanceClient()
+        tenants = client.list_user_tenants(token)
+
+        if not tenants:
+            console.print("You don't belong to any tenants yet", style="yellow")
+            raise typer.Exit(0)
+
+        # Get current tenant ID for marking
+        current_tenant_id = token_manager.get_current_tenant_id()
+
+        # Create Rich Table
+        table = Table(title="Your Tenants")
+        table.add_column("ID", justify="right", style="cyan", no_wrap=True)
+        table.add_column("Name", style="bold")
+        table.add_column("Role", style="bold")
+        table.add_column("Status", justify="center", style="dim")
+        table.add_column("Joined", style="dim")
+
+        for tenant in tenants:
+            role_style = _get_role_style(tenant.role)
+            status = "★ ACTIVE" if tenant.id == current_tenant_id else ""
+            status_style = "green bold" if status else "dim"
+
+            table.add_row(
+                str(tenant.id),
+                tenant.name,
+                f"[{role_style}]{tenant.role.upper()}[/{role_style}]",
+                f"[{status_style}]{status}[/{status_style}]",
+                str(tenant.created_at.date()),
+            )
+
+        console.print(table)
+        console.print(f"\nTotal tenants: {len(tenants)}")
+
+        if current_tenant_id:
+            console.print(f"[dim]Current tenant ID: {current_tenant_id}[/dim]")
+        else:
+            console.print("\n[yellow]No active tenant context[/yellow]")
+
+        console.print("\n[dim]To switch tenants: finance-cli tenants switch <id>[/dim]")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except NotFoundException as e:
+        print_error(str(e))
+        console.print("\n[yellow]Tenant list endpoint not found - backend may not support multi-tenant mode[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(f"Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def switch(tenant_id: int = typer.Argument(..., help="Tenant ID to switch to")):
+    """Switch to a different tenant context."""
+    try:
+        token_manager = TokenManager()
+        current_user = token_manager.get_current_user()
+
+        if not current_user:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        # Get current token to verify user is authenticated
+        token = token_manager.get_current_token()
+        if not token:
+            print_error("Not logged in")
+            console.print("\nLogin with: finance-cli auth login")
+            raise typer.Exit(1)
+
+        # Verify tenant exists and user has access to it
+        client = FinanceClient()
+        tenants = client.list_user_tenants(token)
+
+        tenant_ids = [t.id for t in tenants]
+        if tenant_id not in tenant_ids:
+            print_error(f"Tenant {tenant_id} not found or you don't have access")
+            console.print("\n[yellow]Available tenants:[/yellow]")
+            for t in tenants:
+                role_style = _get_role_style(t.role)
+                console.print(f"  [{role_style}]ID {t.id}[/{role_style}]: {t.name} ({t.role.upper()})")
+            console.print("\nList all tenants: finance-cli tenants list")
+            raise typer.Exit(1)
+
+        # Get tenant name for display
+        tenant_name = next((t.name for t in tenants if t.id == tenant_id), f"Tenant {tenant_id}")
+
+        # Switch tenant context
+        token_manager.switch_tenant(tenant_id)
+
+        print_success(f"Switched to tenant: {tenant_name} (ID: {tenant_id})")
+        console.print("\n[yellow]Please login again to complete the switch:[/yellow]")
+        console.print("  finance-cli auth login")
+        console.print("\n[dim]After login, all commands will operate on the new tenant[/dim]")
+
+    except ServiceNotRunningError as e:
+        print_error(str(e))
+        console.print("\nTo start Finance Planner:")
+        console.print("  cd ~/PycharmProjects/finance_planner")
+        console.print("  uvicorn app.main:app --reload --port 8000")
+        raise typer.Exit(1)
+    except AuthenticationError:
+        print_error("Authentication failed - token may be expired")
+        console.print("\nPlease login again: finance-cli auth login")
+        raise typer.Exit(1)
+    except NotFoundException as e:
+        print_error(str(e))
+        console.print("\n[yellow]Tenant list endpoint not found - backend may not support multi-tenant mode[/yellow]")
+        raise typer.Exit(1)
+    except TenantNotFoundError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except TenantSwitchError as e:
         print_error(str(e))
         raise typer.Exit(1)
     except Exception as e:

@@ -39,13 +39,16 @@ class TokenStorage(BaseModel):
     refresh_token: str
     expires_at: datetime  # When access token expires
     user_id: Optional[str] = None
+    tenant_id: Optional[int] = None  # Tenant context for this token
 
 
 class TokenFile(BaseModel):
     """Root structure of tokens.json file."""
 
     current_user: Optional[str] = None
+    current_tenant_id: Optional[int] = None  # Active tenant for current user
     tokens: dict[str, TokenStorage] = Field(default_factory=dict)
+    tenant_preferences: dict[str, int] = Field(default_factory=dict)  # email -> tenant_id mapping
 
 
 # ============================================================================
@@ -227,3 +230,15 @@ class TenantRoleUpdate(BaseModel):
     """Tenant member role update request."""
 
     role: str
+
+
+class TenantSummary(BaseModel):
+    """Summary of tenant user belongs to (from list endpoint)."""
+
+    id: int
+    name: str
+    role: str  # User's role in this tenant: owner, admin, member, viewer
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

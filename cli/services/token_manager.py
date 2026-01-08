@@ -57,11 +57,15 @@ class TokenManager:
         # Calculate expiration time
         expires_at = datetime.now() + timedelta(seconds=token_response.expires_in)
 
+        # Extract tenant_id from JWT token
+        tenant_id = self.get_tenant_id_from_token(token_response.access_token)
+
         # Create storage entry
         token_storage = TokenStorage(
             access_token=token_response.access_token,
             refresh_token=token_response.refresh_token,
             expires_at=expires_at,
+            tenant_id=tenant_id,
         )
 
         # Load existing tokens
@@ -70,6 +74,11 @@ class TokenManager:
         # Update tokens
         token_file.tokens[email] = token_storage
         token_file.current_user = email
+
+        # Update tenant preferences and current_tenant_id
+        if tenant_id:
+            token_file.tenant_preferences[email] = tenant_id
+            token_file.current_tenant_id = tenant_id
 
         # Write back to file
         self._write_token_file(token_file)
@@ -134,6 +143,18 @@ class TokenManager:
         token_file = self._read_token_file()
         return token_file.current_user
 
+    def get_current_tenant_id(self) -> Optional[int]:
+        """
+        Get current tenant ID for logged-in user.
+
+        Returns:
+            Tenant ID from user's tenant preference, or None if not set
+        """
+        token_file = self._read_token_file()
+        if not token_file.current_user:
+            return None
+        return token_file.tenant_preferences.get(token_file.current_user)
+
     def logout(self, email: Optional[str] = None) -> None:
         """
         Logout user (remove tokens).
@@ -173,6 +194,34 @@ class TokenManager:
         token_file.current_user = email
         self._write_token_file(token_file)
 
+    def switch_tenant(self, tenant_id: int) -> None:
+        """
+        Switch to a different tenant context for current user.
+
+        This clears the current token and updates the tenant preference,
+        requiring the user to log in again to get a token for the new tenant.
+
+        Args:
+            tenant_id: Tenant ID to switch to
+
+        Raises:
+            TokenNotFoundError: If no current user
+        """
+        token_file = self._read_token_file()
+
+        if not token_file.current_user:
+            raise TokenNotFoundError("No current user")
+
+        # Update tenant preference
+        token_file.tenant_preferences[token_file.current_user] = tenant_id
+        token_file.current_tenant_id = tenant_id
+
+        # Clear token to force re-authentication with new tenant context
+        if token_file.current_user in token_file.tokens:
+            del token_file.tokens[token_file.current_user]
+
+        self._write_token_file(token_file)
+
     def list_users(self) -> list[str]:
         """
         List all authenticated users.
@@ -208,6 +257,27 @@ class TokenManager:
         except (JWTError, ValueError, KeyError):
             # If we can't decode, consider it expired
             return True
+
+    def get_tenant_id_from_token(self, token: str) -> Optional[int]:
+        """
+        Extract tenant_id from JWT token claims.
+
+        Args:
+            token: JWT token string
+
+        Returns:
+            Tenant ID from token, or None if not found
+        """
+        try:
+            payload = jwt.get_unverified_claims(token)
+            tenant_id = payload.get("tenant_id")
+
+            if tenant_id is not None:
+                return int(tenant_id)
+            return None
+
+        except (JWTError, ValueError, KeyError):
+            return None
 
     def _refresh_current_token(self) -> str:
         """
@@ -249,10 +319,67 @@ class TokenManager:
         try:
             with open(self.storage_path, "r") as f:
                 data = json.load(f)
-                return TokenFile(**data)
+                token_file = TokenFile(**data)
+
+                # Migrate old format if needed
+                token_file = self._migrate_token_file(token_file)
+
+                return token_file
         except (json.JSONDecodeError, ValueError):
             # Corrupted file, start fresh
             return TokenFile()
+
+    def _migrate_token_file(self, token_file: TokenFile) -> TokenFile:
+        """
+        Migrate old token file format to new format with tenant support.
+
+        Extracts tenant_id from existing JWT tokens and populates tenant_preferences.
+        This ensures backwards compatibility with old token files.
+
+        Args:
+            token_file: Token file to migrate
+
+        Returns:
+            Migrated token file
+        """
+        migrated = False
+
+        # Ensure tenant_preferences dict exists
+        if not hasattr(token_file, 'tenant_preferences') or token_file.tenant_preferences is None:
+            token_file.tenant_preferences = {}
+            migrated = True
+
+        # Ensure current_tenant_id field exists
+        if not hasattr(token_file, 'current_tenant_id'):
+            token_file.current_tenant_id = None
+            migrated = True
+
+        # Extract tenant_id from existing tokens
+        for email, token_storage in token_file.tokens.items():
+            # Ensure tenant_id field exists in token_storage
+            if not hasattr(token_storage, 'tenant_id') or token_storage.tenant_id is None:
+                # Extract from JWT
+                tenant_id = self.get_tenant_id_from_token(token_storage.access_token)
+                token_storage.tenant_id = tenant_id
+                migrated = True
+
+                # Update tenant preference if we found one
+                if tenant_id and email not in token_file.tenant_preferences:
+                    token_file.tenant_preferences[email] = tenant_id
+                    migrated = True
+
+        # Set current_tenant_id if we have a current user
+        if token_file.current_user and token_file.current_tenant_id is None:
+            tenant_id = token_file.tenant_preferences.get(token_file.current_user)
+            if tenant_id:
+                token_file.current_tenant_id = tenant_id
+                migrated = True
+
+        # Write migrated file back to disk
+        if migrated:
+            self._write_token_file(token_file)
+
+        return token_file
 
     def _write_token_file(self, token_file: TokenFile) -> None:
         """Write token file to disk with secure permissions."""

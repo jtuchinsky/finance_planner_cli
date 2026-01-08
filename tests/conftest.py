@@ -14,6 +14,9 @@ from cli.models.schemas import (
     Account,
     Transaction,
     TransactionListResponse,
+    Tenant,
+    TenantMember,
+    TenantSummary,
 )
 
 
@@ -142,3 +145,67 @@ def mock_httpx_response():
         return mock_response
 
     return _create_response
+
+
+@pytest.fixture
+def mock_token_with_tenant():
+    """Mock JWT token with tenant_id in claims."""
+    # This is a JWT with payload: {"sub": "1", "email": "test@example.com", "tenant_id": "1", "exp": future}
+    return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwidGVuYW50X2lkIjoiMSIsImV4cCI6MTc2NzI4ODM0MH0.test"
+
+
+@pytest.fixture
+def mock_token_response_with_tenant(mock_token_with_tenant):
+    """Mock token response with tenant_id in JWT."""
+    return TokenResponse(
+        access_token=mock_token_with_tenant,
+        refresh_token="refresh_token_here",
+        token_type="bearer",
+        expires_in=900  # 15 minutes
+    )
+
+
+@pytest.fixture
+def mock_tenant():
+    """Mock tenant response."""
+    return Tenant(
+        id=1,
+        name="Test Tenant",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+
+
+@pytest.fixture
+def mock_tenant_member():
+    """Mock tenant member response."""
+    return TenantMember(
+        id=1,
+        user_id=1,
+        auth_user_id="auth_user_123",
+        role="owner",
+        created_at=datetime.now()
+    )
+
+
+@pytest.fixture
+def mock_tenant_summary():
+    """Mock tenant summary for list response."""
+    return TenantSummary(
+        id=1,
+        name="Test Tenant",
+        role="owner",
+        created_at=datetime.now()
+    )
+
+
+@pytest.fixture
+def mock_tenant_summaries_list(mock_tenant_summary):
+    """Mock list of tenant summaries."""
+    tenant2 = TenantSummary(
+        id=2,
+        name="Second Tenant",
+        role="member",
+        created_at=datetime.now()
+    )
+    return [mock_tenant_summary, tenant2]

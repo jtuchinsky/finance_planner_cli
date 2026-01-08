@@ -201,3 +201,90 @@ class TestFinanceClient:
 
         with pytest.raises(ServiceNotRunningError):
             client.list_accounts(token="access_token")
+
+
+class TestFinanceClientTenants:
+    """Test FinanceClient tenant methods."""
+
+    @patch('cli.services.finance_client.httpx.Client')
+    def test_list_user_tenants_success(self, mock_client_class, mock_httpx_response, mock_tenant_summaries_list):
+        """Test successful retrieval of user's tenants."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client_class.return_value = mock_client
+
+        tenants_data = [t.model_dump(mode='json') for t in mock_tenant_summaries_list]
+        response = mock_httpx_response(200, tenants_data)
+        mock_client.get.return_value = response
+
+        client = FinanceClient(base_url="http://test:8000")
+        tenants = client.list_user_tenants(token="access_token")
+
+        assert len(tenants) == 2
+        assert tenants[0].id == 1
+        assert tenants[0].name == "Test Tenant"
+        assert tenants[0].role == "owner"
+        assert tenants[1].id == 2
+        assert tenants[1].name == "Second Tenant"
+        assert tenants[1].role == "member"
+
+    @patch('cli.services.finance_client.httpx.Client')
+    def test_list_user_tenants_empty_list(self, mock_client_class, mock_httpx_response):
+        """Test listing tenants when user belongs to no tenants."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client_class.return_value = mock_client
+
+        response = mock_httpx_response(200, [])
+        mock_client.get.return_value = response
+
+        client = FinanceClient(base_url="http://test:8000")
+        tenants = client.list_user_tenants(token="access_token")
+
+        assert len(tenants) == 0
+
+    @patch('cli.services.finance_client.httpx.Client')
+    def test_list_user_tenants_auth_error(self, mock_client_class, mock_httpx_response):
+        """Test listing tenants with invalid token."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client_class.return_value = mock_client
+
+        response = mock_httpx_response(401)
+        mock_client.get.return_value = response
+
+        client = FinanceClient(base_url="http://test:8000")
+
+        with pytest.raises(AuthenticationError, match="Invalid or expired token"):
+            client.list_user_tenants(token="invalid_token")
+
+    @patch('cli.services.finance_client.httpx.Client')
+    def test_list_user_tenants_endpoint_not_found(self, mock_client_class, mock_httpx_response):
+        """Test listing tenants when backend doesn't support the endpoint."""
+        from cli.utils.errors import NotFoundException
+
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client_class.return_value = mock_client
+
+        response = mock_httpx_response(404)
+        mock_client.get.return_value = response
+
+        client = FinanceClient(base_url="http://test:8000")
+
+        with pytest.raises(NotFoundException, match="Tenant list endpoint not found"):
+            client.list_user_tenants(token="access_token")
+
+    @patch('cli.services.finance_client.httpx.Client')
+    def test_list_user_tenants_service_not_running(self, mock_client_class):
+        """Test listing tenants when service is not running."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client_class.return_value = mock_client
+
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
+        client = FinanceClient(base_url="http://test:8000")
+
+        with pytest.raises(ServiceNotRunningError):
+            client.list_user_tenants(token="access_token")

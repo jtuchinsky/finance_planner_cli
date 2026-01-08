@@ -139,11 +139,42 @@ finance-cli transactions batch <account_id> <file.csv> --format csv
 
 # Tenant & member management
 finance-cli tenants show                 # Show current tenant info
+finance-cli tenants list                 # List all tenants you belong to
+finance-cli tenants switch <id>          # Switch to different tenant (requires re-login)
 finance-cli tenants update --name "New Tenant Name"
 finance-cli tenants members list         # List all members
 finance-cli tenants members invite --auth-user-id <id> --role member
 finance-cli tenants members set-role <user_id> --role admin
 finance-cli tenants members remove <user_id>
+```
+
+## Multi-Tenant Switching Workflow
+
+When users belong to multiple tenants, they can switch between them:
+
+```bash
+# 1. List all tenants you belong to
+finance-cli tenants list
+
+# 2. Switch to desired tenant
+finance-cli tenants switch <tenant_id>
+
+# 3. Login to activate the tenant switch
+finance-cli auth login
+
+# 4. Verify the switch
+finance-cli tenants show
+
+# Now all commands operate on the new tenant
+finance-cli accounts list
+finance-cli transactions list
+```
+
+**Important Notes:**
+- After switching tenants, you must login again to get a new JWT token with the correct tenant_id claim
+- The tenant_id is extracted from the JWT token and stored in TokenStorage
+- TokenManager automatically tracks tenant preferences per user
+- Old token files (without tenant fields) auto-migrate when read
 ```
 
 ## Adding Dependencies

@@ -72,3 +72,15 @@ class NotFoundException(CLIError):
     """Resource not found (404 Not Found)."""
 
     pass
+
+
+class TenantNotFoundError(CLIError):
+    """Tenant doesn't exist or user doesn't have access."""
+
+    pass
+
+
+class TenantSwitchError(CLIError):
+    """Tenant switch failed."""
+
+    pass

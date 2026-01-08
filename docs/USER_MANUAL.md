@@ -763,7 +763,7 @@ The Finance Planner includes multi-tenancy with role-based access control (RBAC)
 
 ### View Current Tenant
 
-Display information about your tenant:
+Display information about your current active tenant:
 
 ```bash
 finance-cli tenants show
@@ -777,6 +777,86 @@ finance-cli tenants show
 │ Created: 2026-01-03 10:30:00             │
 │ Updated: 2026-01-03 10:30:00             │
 └───────────────────────────────────────────┘
+```
+
+### List All Your Tenants
+
+View all tenants you belong to across the system:
+
+```bash
+finance-cli tenants list
+```
+
+**Example Output:**
+```
+                Your Tenants
+┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ ID ┃ Name                 ┃ Role   ┃ Status   ┃ Joined    ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━┩
+│ 1  │ Personal Budget      │ OWNER  │ ★ ACTIVE │ 2026-01-03│
+│ 2  │ Family Finances      │ ADMIN  │          │ 2026-01-04│
+│ 3  │ Work Team Budget     │ MEMBER │          │ 2026-01-05│
+│ 4  │ Client Project       │ VIEWER │          │ 2026-01-06│
+└────┴──────────────────────┴────────┴──────────┴───────────┘
+
+Total tenants: 4
+Current tenant ID: 1
+
+To switch tenants: finance-cli tenants switch <id>
+```
+
+**Features:**
+- Shows all tenants you're a member of
+- Displays your role in each tenant (color-coded)
+- Marks active tenant with ★ symbol
+- Sorted by join date
+
+### Switch Tenant Context
+
+Change your active tenant to work with different data:
+
+```bash
+finance-cli tenants switch <tenant_id>
+```
+
+**Example:**
+```bash
+finance-cli tenants switch 2
+```
+
+**Output:**
+```
+✓ Switched to tenant: Family Finances (ID: 2)
+
+Please login again to complete the switch:
+  finance-cli auth login
+
+After login, all commands will operate on the new tenant
+```
+
+**Important Notes:**
+- You must login again after switching to get a new JWT token with the correct tenant context
+- The tenant ID must be one you belong to (verify with `tenants list`)
+- Invalid tenant IDs will show available tenants
+- All subsequent commands will operate on the new tenant after re-login
+
+**Complete Switch Workflow:**
+```bash
+# 1. See available tenants
+finance-cli tenants list
+
+# 2. Switch to desired tenant
+finance-cli tenants switch 2
+
+# 3. Login to activate the switch
+finance-cli auth login
+
+# 4. Verify switch was successful
+finance-cli tenants show
+
+# 5. Now all commands use new tenant
+finance-cli accounts list         # Shows accounts for tenant 2
+finance-cli transactions list     # Shows transactions for tenant 2
 ```
 
 ### Update Tenant

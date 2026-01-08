@@ -16,6 +16,7 @@ from cli.models.schemas import (
     BatchTransactionResponse,
     Tenant,
     TenantMember,
+    TenantSummary,
 )
 from cli.utils.errors import (
     ServiceNotRunningError,
@@ -900,6 +901,48 @@ class FinanceClient:
                 else:
                     raise Exception(
                         f"Remove member failed: {response.status_code} - {response.text}"
+                    )
+
+        except httpx.ConnectError as e:
+            raise ServiceNotRunningError("Finance Planner", self.base_url) from e
+
+    def list_user_tenants(self, token: str) -> list[TenantSummary]:
+        """
+        List all tenants the authenticated user belongs to.
+
+        NOTE: This endpoint requires backend support (GET /api/tenants).
+        If the backend doesn't have this endpoint yet, this will fail.
+
+        Args:
+            token: JWT access token
+
+        Returns:
+            List of tenant summaries with user's role in each tenant
+
+        Raises:
+            ServiceNotRunningError: If finance_planner is not running
+            AuthenticationError: If token is invalid
+            NotFoundException: If endpoint doesn't exist (404)
+        """
+        url = f"{self.base_url}/api/tenants"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
+                response = client.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    tenants_data = response.json()
+                    return [TenantSummary(**tenant) for tenant in tenants_data]
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid or expired token")
+                elif response.status_code == 404:
+                    raise NotFoundException(
+                        "Tenant list endpoint not found. Backend may not support multi-tenant listing yet."
+                    )
+                else:
+                    raise Exception(
+                        f"List tenants failed: {response.status_code} - {response.text}"
                     )
 
         except httpx.ConnectError as e:

@@ -530,11 +530,11 @@ Transactions:
 
 ---
 
-## Step 10: Explore Multi-Tenant Features (1 minute)
+## Step 10: Explore Multi-Tenant Features (2 minutes)
 
-The Finance Planner includes built-in multi-tenancy with role-based access control.
+The Finance Planner includes built-in multi-tenancy with role-based access control and seamless tenant switching.
 
-### View Your Tenant
+### View Your Current Tenant
 
 ```bash
 finance-cli tenants show
@@ -548,6 +548,63 @@ finance-cli tenants show
 │ Created: 2025-01-07T10:00:00             │
 │ Updated: 2025-01-07T10:00:00             │
 └───────────────────────────────────────────┘
+```
+
+### List All Your Tenants
+
+See all tenants you belong to and your role in each:
+
+```bash
+finance-cli tenants list
+```
+
+**Output:**
+```
+                Your Tenants
+┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ ID ┃ Name                 ┃ Role   ┃ Status   ┃ Joined    ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━┩
+│ 1  │ Personal Budget      │ OWNER  │ ★ ACTIVE │ 2025-01-07│
+│ 2  │ Family Budget        │ ADMIN  │          │ 2025-01-08│
+│ 3  │ Work Team Budget     │ MEMBER │          │ 2025-01-09│
+└────┴──────────────────────┴────────┴──────────┴───────────┘
+
+Total tenants: 3
+Current tenant ID: 1
+```
+
+**Note:** The active tenant is marked with a ★ symbol.
+
+### Switch Between Tenants
+
+When you belong to multiple tenants, you can switch between them:
+
+```bash
+# Switch to Family Budget (tenant ID 2)
+finance-cli tenants switch 2
+```
+
+**Output:**
+```
+✓ Switched to tenant: Family Budget (ID: 2)
+
+Please login again to complete the switch:
+  finance-cli auth login
+
+After login, all commands will operate on the new tenant
+```
+
+**Important:** After switching tenants, you must login again to get a new JWT token with the correct tenant context:
+
+```bash
+finance-cli auth login
+```
+
+Now all your commands (accounts, transactions, etc.) will operate on the Family Budget tenant.
+
+**To verify the switch:**
+```bash
+finance-cli tenants show  # Shows "Family Budget" as current tenant
 ```
 
 ### List Tenant Members
@@ -570,7 +627,7 @@ Total members: 1
 
 **Role Hierarchy:**
 - **OWNER** - Full control, manage all members and roles
-- **ADMIN** - Invite/remove members (except owner)
+- **ADMIN** - Invite/remove members (except owner), manage tenant settings
 - **MEMBER** - Create/update accounts and transactions
 - **VIEWER** - Read-only access
 
@@ -584,6 +641,30 @@ finance-cli auth register
 finance-cli tenants members invite \
   --auth-user-id <their-auth-user-id> \
   --role member
+```
+
+### Multi-Tenant Workflow Example
+
+```bash
+# 1. List your tenants
+finance-cli tenants list
+
+# 2. Switch to work tenant
+finance-cli tenants switch 3
+
+# 3. Login to activate the switch
+finance-cli auth login
+
+# 4. Now all commands operate on the work tenant
+finance-cli accounts list          # Shows work accounts
+finance-cli transactions list      # Shows work transactions
+
+# 5. Switch back to personal tenant
+finance-cli tenants switch 1
+finance-cli auth login
+
+# 6. Verify you're back on personal tenant
+finance-cli tenants show
 ```
 
 ---
