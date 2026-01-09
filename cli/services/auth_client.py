@@ -79,14 +79,13 @@ class AuthClient:
         except httpx.ConnectError as e:
             raise ServiceNotRunningError("MCP_Auth", self.base_url) from e
 
-    def login(self, email: str, password: str, tenant_email: str) -> TokenResponse:
+    def login(self, tenant_email: str, password: str) -> TokenResponse:
         """
         Login and get JWT tokens.
 
         Args:
-            email: User's email
-            password: User's password
-            tenant_email: Tenant owner's email (for multi-tenant login)
+            tenant_email: Tenant email (your email for your own tenant)
+            password: Password
 
         Returns:
             Token data (access_token, refresh_token, etc.)
@@ -97,9 +96,8 @@ class AuthClient:
         """
         url = f"{self.base_url}/auth/login"
         data = {
-            "email": email,
-            "password": password,
             "tenant_email": tenant_email,
+            "password": password,
         }
 
         try:

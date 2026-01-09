@@ -67,9 +67,8 @@ def register(
 
 @app.command()
 def login(
-    email: Optional[str] = typer.Option(None, "--email", "-e", help="User email"),
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="User password", hide_input=True),
-    tenant_email: Optional[str] = typer.Option(None, "--tenant-email", help="Tenant owner email (defaults to user email)"),
+    email: Optional[str] = typer.Option(None, "--email", "-e", help="Tenant email (your email for your own tenant)"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Password", hide_input=True),
     save: bool = typer.Option(True, help="Save token for future use"),
 ):
     """Login and obtain JWT token."""
@@ -86,13 +85,9 @@ def login(
     if not password:
         password = typer.prompt("Password", hide_input=True)
 
-    # Default tenant_email to user email if not provided
-    if not tenant_email:
-        tenant_email = email
-
     try:
         client = AuthClient()
-        token_response = client.login(email, password, tenant_email)
+        token_response = client.login(email, password)
 
         if save:
             token_manager = TokenManager()
