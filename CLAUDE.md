@@ -148,26 +148,56 @@ finance-cli tenants members set-role <user_id> --role admin
 finance-cli tenants members remove <user_id>
 ```
 
-## Multi-Tenant Switching Workflow
+## Multi-Tenant Workflow
 
-When users belong to multiple tenants, they can switch between them:
+The CLI supports multi-tenant mode, allowing you to work with multiple tenants:
 
+### List Your Tenants
 ```bash
-# 1. List all tenants you belong to
 finance-cli tenants list
+```
+Shows all tenants you belong to with your role in each. The active tenant is marked with ★.
 
-# 2. Switch to desired tenant
+### Switch Tenants
+```bash
 finance-cli tenants switch <tenant_id>
+finance-cli auth login
+```
+Switching tenants clears your token and prompts re-login to get a token for the new tenant.
 
-# 3. Login to activate the tenant switch
+### Tenant Context in Commands
+Most list commands show which tenant you're operating on:
+```bash
+finance-cli accounts list        # Shows tenant context panel
+finance-cli transactions list    # Shows tenant context panel
+finance-cli accounts list --no-context  # Suppress tenant display
+```
+
+### Check Current Tenant
+```bash
+finance-cli auth whoami          # Shows user info + tenant name, ID, and role
+finance-cli tenants show         # Shows detailed tenant information
+```
+
+### Complete Workflow Example
+```bash
+# 1. Login (shows tenant ID after login)
 finance-cli auth login
 
-# 4. Verify the switch
-finance-cli tenants show
+# 2. List all tenants you belong to
+finance-cli tenants list
+
+# 3. Switch to different tenant
+finance-cli tenants switch 2
+
+# 4. Login again to activate the switch
+finance-cli auth login
+
+# 5. Verify the switch
+finance-cli auth whoami  # Shows new tenant
 
 # Now all commands operate on the new tenant
-finance-cli accounts list
-finance-cli transactions list
+finance-cli accounts list  # Shows "Tenant: Company B (ID: 2)" panel
 ```
 
 **Important Notes:**
@@ -175,7 +205,6 @@ finance-cli transactions list
 - The tenant_id is extracted from the JWT token and stored in TokenStorage
 - TokenManager automatically tracks tenant preferences per user
 - Old token files (without tenant fields) auto-migrate when read
-```
 
 ## Adding Dependencies
 

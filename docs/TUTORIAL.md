@@ -643,6 +643,55 @@ finance-cli tenants members invite \
   --role member
 ```
 
+### Tenant Context in Commands
+
+When listing accounts or transactions, the CLI automatically shows which tenant you're operating on:
+
+```bash
+finance-cli accounts list
+```
+
+**Output:**
+```
+┌───────────────────────────────────┐
+│ Tenant: Family Budget (ID: 2)    │
+└───────────────────────────────────┘
+
+             Your Accounts
+┏━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┓
+┃ ID ┃ Name         ┃ Type     ┃ Balance  ┃
+...
+```
+
+This helps you confirm which tenant context you're working in. You can suppress this display with the `--no-context` flag:
+
+```bash
+finance-cli accounts list --no-context    # Hide tenant context
+finance-cli transactions list --no-context
+```
+
+### Check Your Tenant Details
+
+Use the `whoami` command to see both user and tenant information:
+
+```bash
+finance-cli auth whoami
+```
+
+**Output:**
+```
+Current user: demo@example.com
+  User ID: 1
+  Active: True
+  TOTP Enabled: False
+  Created: 2025-01-07 10:00:00
+
+Tenant:
+  Name: Family Budget
+  ID: 2
+  Role: ADMIN
+```
+
 ### Multi-Tenant Workflow Example
 
 ```bash
@@ -652,18 +701,22 @@ finance-cli tenants list
 # 2. Switch to work tenant
 finance-cli tenants switch 3
 
-# 3. Login to activate the switch
+# 3. Login to activate the switch (shows tenant ID after login)
 finance-cli auth login
+# Output includes: "Tenant ID: 3"
 
-# 4. Now all commands operate on the work tenant
-finance-cli accounts list          # Shows work accounts
-finance-cli transactions list      # Shows work transactions
+# 4. Verify the switch
+finance-cli auth whoami  # Shows tenant name, ID, and role
 
-# 5. Switch back to personal tenant
+# 5. Now all commands operate on the work tenant
+finance-cli accounts list          # Shows "Tenant: Work Team Budget (ID: 3)" panel
+finance-cli transactions list      # Shows work transactions with tenant context
+
+# 6. Switch back to personal tenant
 finance-cli tenants switch 1
 finance-cli auth login
 
-# 6. Verify you're back on personal tenant
+# 7. Verify you're back on personal tenant
 finance-cli tenants show
 ```
 

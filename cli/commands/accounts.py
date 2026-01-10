@@ -10,7 +10,7 @@ from rich.table import Table
 
 from cli.services.finance_client import FinanceClient
 from cli.services.token_manager import TokenManager
-from cli.utils.console import console, print_success, print_error, print_warning
+from cli.utils.console import console, print_success, print_error, print_warning, print_tenant_context
 from cli.utils.errors import (
     ServiceNotRunningError,
     AuthenticationError,
@@ -104,6 +104,11 @@ def list_accounts(
         "-f",
         help="Output format: table, json, pretty",
     ),
+    show_context: bool = typer.Option(
+        True,
+        "--context/--no-context",
+        help="Show tenant context",
+    ),
 ):
     """List all accounts for the current user."""
     try:
@@ -116,6 +121,16 @@ def list_accounts(
             raise typer.Exit(1)
 
         client = FinanceClient()
+
+        # Show tenant context if enabled
+        if show_context:
+            try:
+                tenant = client.get_current_tenant(token)
+                print_tenant_context(tenant.name, tenant.id)
+            except Exception:
+                # Silently skip if tenant fetch fails
+                pass
+
         accounts = client.list_accounts(token)
 
         if not accounts:

@@ -95,6 +95,13 @@ def login(
 
             print_success(f"Logged in as {email}")
             console.print(f"  Token expires in {token_response.expires_in // 60} minutes")
+
+            # Show tenant info
+            tenant_id = token_manager.get_current_tenant_id()
+            if tenant_id:
+                console.print(f"  Tenant ID: {tenant_id}")
+                console.print("\n[dim]To see all your tenants: finance-cli tenants list[/dim]")
+
             console.print("\nYou can now use finance-cli commands")
         else:
             # Just print the token
@@ -172,6 +179,36 @@ def whoami():
             console.print(f"  Active: {user.is_active}")
             console.print(f"  TOTP Enabled: {user.is_totp_enabled}")
             console.print(f"  Created: {user.created_at}")
+
+            # Show tenant info
+            try:
+                from cli.services.finance_client import FinanceClient
+                finance_client = FinanceClient()
+                tenant = finance_client.get_current_tenant(token)
+
+                console.print(f"\n[bold cyan]Tenant:[/bold cyan]")
+                console.print(f"  Name: {tenant.name}")
+                console.print(f"  ID: {tenant.id}")
+
+                # Get role from tenant list if available
+                try:
+                    tenants = finance_client.list_user_tenants(token)
+                    user_tenant = next((t for t in tenants if t.id == tenant.id), None)
+                    if user_tenant:
+                        role_styles = {
+                            "owner": "red bold",
+                            "admin": "yellow bold",
+                            "member": "green",
+                            "viewer": "blue"
+                        }
+                        role_style = role_styles.get(user_tenant.role.lower(), "white")
+                        console.print(f"  Role: [{role_style}]{user_tenant.role.upper()}[/{role_style}]")
+                except Exception:
+                    pass  # Skip role if can't fetch
+
+            except Exception:
+                # Tenant info not available (maybe backend doesn't support it yet)
+                pass
 
         except AuthenticationError:
             print_warning("Token expired or invalid")
